@@ -1,0 +1,23 @@
+{
+  "name": "vouch-sanity",
+  "private": true,
+  "description": "Vouch: verified mutual aid. Jev makes typed decisions, Sanity drafts are the trust gate.",
+  "workspaces": [
+    "web",
+    "studio"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev -w web",
+    "dev:studio": "npm run dev -w studio",
+    "build:web": "npm run build -w web",
+    "build:studio": "npm run build -w studio",
+    "typecheck": "npm run typecheck -w web && npm run typecheck -w studio",
+    "lint": "npm run lint -w web && npm run lint -w studio",
+    "check": "npm run typecheck && npm run lint && npm run build:web && npm run build:studio",
+    "seed": "npm run seed -w studio",
+    "deploy:studio": "npm run deploy -w studio"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}

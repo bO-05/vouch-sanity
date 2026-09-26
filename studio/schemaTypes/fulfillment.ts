@@ -1,0 +1,194 @@
+import {BillIcon} from '@sanity/icons/Bill'
+import {HashIcon} from '@sanity/icons/Hash'
+import {HeartIcon} from '@sanity/icons/Heart'
+import {defineArrayMember, defineField, defineType} from 'sanity'
+import {PLEDGE_STATUSES, PROOF_VERDICTS} from './constants'
+import {noContactInfo} from './validation'
+
+/** A donor promising some units of one checklist line. Goods or money move off-platform. */
+export const pledge = defineType({
+  name: 'pledge',
+  title: 'Pledge',
+  type: 'document',
+  icon: HeartIcon,
+  fields: [
+    defineField({
+      name: 'need',
+      title: 'Request',
+      type: 'reference',
+      to: [{type: 'need'}],
+      validation: (rule) => rule.required(),
+    }),
+    defineField({
+      name: 'itemKey',
+      title: 'Checklist line key',
+      type: 'string',
+      description: 'The `_key` of the checklist line in the request.',
+      validation: (rule) => rule.required(),
+    }),
+    defineField({
+      name: 'quantity',
+      type: 'number',
+      validation: (rule) => rule.required().integer().min(1),
+    }),
+    defineField({
+      name: 'donorDisplayName',
+      title: 'Donor display name',
+      type: 'string',
+      validation: (rule) => [rule.required().max(40), rule.custom(noContactInfo).warning()],
+    }),
+    defineField({
+      name: 'status',
+      type: 'string',
+      options: {list: PLEDGE_STATUSES, layout: 'radio'},
+      initialValue: 'pledged',
+      validation: (rule) => rule.required(),
+    }),
+    defineField({name: 'pledgedAt', type: 'datetime', readOnly: true}),
+    defineField({name: 'isDemo', title: 'Demo data', type: 'boolean', initialValue: false}),
+  ],
+  orderings: [{title: 'Newest first', name: 'pledgedDesc', by: [{field: 'pledgedAt', direction: 'desc'}]}],
+  preview: {
+    select: {
+      donor: 'donorDisplayName',
+      quantity: 'quantity',
+      status: 'status',
+      needTitle: 'need.title',
+      isDemo: 'isDemo',
+    },
+    prepare: ({donor, quantity, status, needTitle, isDemo}) => ({
+      title: `${donor ?? 'Someone'} pledged ${quantity ?? '?'}`,
+      subtitle: [isDemo ? 'Demo' : null, needTitle, status].filter(Boolean).join(' · '),
+    }),
+  },
+})
+
+/**
+ * A receipt showing a request was fulfilled.
+ * OCR runs in the uploader's browser (Tesseract.js); the uploader corrects the lines;
+ * Jev scores each (line × checklist item) pair; code assigns matches and computes coverage.
+ */
+export const proof = defineType({
+  name: 'proof',
+  title: 'Proof',
+  type: 'document',
+  icon: BillIcon,
+  fields: [
+    defineField({
+      name: 'need',
+      title: 'Request',
+      type: 'reference',
+      to: [{type: 'need'}],
+      validation: (rule) => rule.required(),
+    }),
+    defineField({
+      name: 'image',
+      title: 'Receipt image',
+      type: 'image',
+      description: 'Uploaders are asked to hide card numbers and anything personal before uploading.',
+    }),
+    defineField({
+      name: 'ocrText',
+      title: 'Raw OCR text',
+      type: 'text',
+      rows: 6,
+      readOnly: true,
+      description: "Tesseract.js output from the uploader's browser, before corrections.",
+    }),
+    defineField({
+      name: 'lines',
+      title: 'Receipt lines',
+      type: 'array',
+      of: [defineArrayMember({type: 'receiptLine'})],
+      readOnly: true,
+      description: "Lines after the uploader's corrections. These, not the raw OCR, are what Jev compares.",
+    }),
+    defineField({
+      name: 'receiptProbability',
+      type: 'number',
+      readOnly: true,
+      description: "Jev's probability that the text is a store receipt at all.",
+      validation: (rule) => rule.min(0).max(1),
+    }),
+    defineField({
+      name: 'matches',
+      type: 'array',
+      of: [defineArrayMember({type: 'proofMatch'})],
+      readOnly: true,
+    }),
+    defineField({
+      name: 'coverage',
+      type: 'number',
+      readOnly: true,
+      description: 'Share of pledged checklist lines matched to a receipt line, computed by code.',
+      validation: (rule) => rule.min(0).max(1),
+    }),
+    defineField({
+      name: 'verdict',
+      type: 'string',
+      readOnly: true,
+      initialValue: 'pending',
+      options: {list: PROOF_VERDICTS},
+    }),
+    defineField({
+      name: 'decision',
+      title: 'Jev decision',
+      type: 'reference',
+      to: [{type: 'decision'}],
+      weak: true,
+      readOnly: true,
+    }),
+    defineField({name: 'submittedAt', type: 'datetime', readOnly: true}),
+    defineField({name: 'isDemo', title: 'Demo data', type: 'boolean', initialValue: false}),
+  ],
+  preview: {
+    select: {needTitle: 'need.title', verdict: 'verdict', coverage: 'coverage', media: 'image'},
+    prepare: ({needTitle, verdict, coverage, media}) => ({
+      title: needTitle ? `Receipt for “${needTitle}”` : 'Receipt',
+      subtitle: [verdict, typeof coverage === 'number' ? `${Math.round(coverage * 100)}% covered` : null]
+        .filter(Boolean)
+        .join(' · '),
+      media,
+    }),
+  },
+})
+
+/** Issued when a request is fulfilled. Anyone can recompute the hash in their browser. */
+export const certificate = defineType({
+  name: 'certificate',
+  title: 'Certificate',
+  type: 'document',
+  icon: HashIcon,
+  readOnly: true,
+  fields: [
+    defineField({
+      name: 'need',
+      title: 'Request',
+      type: 'reference',
+      to: [{type: 'need'}],
+      validation: (rule) => rule.required(),
+    }),
+    defineField({
+      name: 'payload',
+      type: 'text',
+      rows: 10,
+      description: 'Canonical JSON (sorted keys, no whitespace) of what was verified.',
+      validation: (rule) => rule.required(),
+    }),
+    defineField({
+      name: 'sha256',
+      title: 'SHA-256',
+      type: 'string',
+      description: 'Hex SHA-256 of the payload, recomputable in the browser with Web Crypto.',
+      validation: (rule) => rule.required().regex(/^[a-f0-9]{64}$/, {name: 'sha256 hex'}),
+    }),
+    defineField({name: 'issuedAt', type: 'datetime'}),
+  ],
+  preview: {
+    select: {needTitle: 'need.title', sha256: 'sha256'},
+    prepare: ({needTitle, sha256}) => ({
+      title: needTitle ?? 'Certificate',
+      subtitle: typeof sha256 === 'string' ? `sha256 ${sha256.slice(0, 16)}…` : undefined,
+    }),
+  },
+})

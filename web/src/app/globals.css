@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+/* Obsidian + amber, after the Sep 2026 Vouch prototype. */
+:root {
+  --background: #0b0b0e;
+  --surface: #14141a;
+  --surface-2: #1b1b23;
+  --border: #272731;
+  --foreground: #ececf1;
+  --muted: #9b9baa;
+  --amber: #f5b544;
+  --amber-soft: #3a2c12;
+  --danger: #f2716b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
