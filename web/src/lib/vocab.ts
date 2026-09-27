@@ -54,6 +54,7 @@ export const DECISION_OUTCOME_LABELS: Record<string, string> = {
   needs_review: 'needs a volunteer',
   emergency: 'possible emergency',
   health_check_ok: 'health check ok',
+  auto_verified: 'receipt verified',
   error: 'error',
 }
 
@@ -61,6 +62,20 @@ export const REVIEW_ACTION_LABELS: Record<string, string> = {
   approve: 'Approved',
   send_back: 'Sent back',
   reject: 'Rejected',
+}
+
+/** A review with a `proof` reference is about a receipt: approve = accepted, reject = declined. */
+export const PROOF_REVIEW_ACTION_LABELS: Record<string, string> = {
+  approve: 'Accepted the receipt',
+  reject: 'Declined the receipt',
+}
+
+export const PROOF_VERDICT_LABELS: Record<string, string> = {
+  pending: 'Being checked by Jev',
+  auto_verified: 'Verified automatically (Jev’s answers cleared the policy)',
+  needs_review: 'Waiting for a volunteer verifier',
+  verified: 'Accepted by a volunteer verifier',
+  rejected: 'Declined by a volunteer verifier',
 }
 
 export const PLEDGE_STATUS_LABELS: Record<string, string> = {
@@ -94,4 +109,6 @@ export const LIFECYCLE_EFFECT_LABELS: Record<string, string> = {
   'record-rejection': 'recording the rejection',
   'jev-proof': 'Jev proof match',
   'issue-certificate': 'issuing the certificate',
+  'record-proof-accepted': 'recording the receipt acceptance',
+  'record-proof-declined': 'recording the receipt decline',
 }

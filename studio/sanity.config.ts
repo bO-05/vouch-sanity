@@ -13,6 +13,7 @@ const SERVER_CREATED_TYPES = new Set([
   'need',
   'pledge',
   'proof',
+  'receiptScan',
   'certificate',
   'decision',
   'review',

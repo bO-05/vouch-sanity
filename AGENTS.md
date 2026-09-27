@@ -83,7 +83,11 @@ Story hook for the post: "A mutual-aid app whose AI can't write a single sentenc
     - `triage-step.ts`: the `jev-triage` effect, Jev plus the gate, writing to the draft.
     - `publish-step.ts`: `publishDraft`, the only place a request is published (revision-guarded transaction), and `recordReview`.
     - `advance.ts`: `after()` background start or drain.
-  - `web/src/lib/desk.ts`: the verifier desk. Inbox read (drafts plus instances) and decide / retry / start, as engine actions.
+  - `web/src/lib/lifecycle/proof-step.ts`: the `jev-proof` effect (Jev + the proof gate), `issue-certificate` (canonical JSON + SHA-256, one certificate per request) and the verifier's accept / decline records.
+  - `web/src/lib/proof-match.ts`: pure module (browser, server, scripts). OCR line splitting, the OCR-similarity check, the proof questions (each receipt line is a named state field), the gate, `canonicalJson`, and the ids `receiptScanId` / `certificateIdFor`.
+  - `web/src/lib/proofs.ts`: the only place a receipt is submitted. One revision-guarded transaction creates the public `proof`, the private `receipt-scan.*` (photo as a JPEG data URL + raw OCR) and moves the request to `proof_check`. Then it fires `submit-proof`, and `advanceLater` drains.
+  - `web/src/app/requests/[id]/proof/` (upload page: in-browser Tesseract.js, editable lines, live check) and `web/src/app/certificates/[id]/` (in-browser SHA-256 check).
+  - `web/src/lib/desk.ts`: the verifier desk. Inbox read (drafts, receipts and instances) and decide / decide on a receipt / retry / start, as engine actions.
   - `web/src/lib/verifier.ts`: passcode check and the HMAC-signed httpOnly session cookie (`readVerifier`, called by every desk action).
   - `web/src/lib/trail.ts`: the server-side half of a published request's trail. Reviews live under the private `review.*` path; send-back and reject notes are hidden.
   - `web/src/lib/intake-context.ts`: catalog, categories and policy loader shared by intake and triage.
@@ -113,6 +117,8 @@ Run from the repo root (npm workspaces `web` and `studio`) unless noted.
 | Sanity CLI | `& "..\node_modules\.bin\sanity.cmd" <cmd>` (from `studio/`) | The binary is hoisted to the root `node_modules`. `npx sanity ...` can hang for minutes here, so call the local binary. Non-interactive commands: `documents create <file> --replace`, `documents delete <ids>`, `cors list`, `cors add <origin> --no-credentials` |
 | Query drafts | `... documents query "<groq>" --api-version v2021-06-07` | API versions 2025-02-19 and later default to the `published` perspective and hide drafts even with your login. Use the old version (raw perspective) whenever a check must see drafts |
 | Calibrate triage | `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file=.env.local scripts/calibrate-triage.ts` (from `web/`) | Real Jev calls on the synthetic pleas, using the live policy. Prints a table and a threshold grid, and writes `handoff/calibration/triage-*.json`. Nothing is written to Sanity |
+| Calibrate proof match | `... scripts/calibrate-proof.ts` (from `web/`) | Real Jev calls on 11 synthetic receipts against the demo checklists (live policy). Writes `handoff/calibration/proof-*.json`. Nothing is written to Sanity |
+| Sample receipts | `node scripts/make-sample-receipts.ts` (from `web/`) | Renders `web/public/samples/*.png` from SVG with `sharp` (hoisted at the root). Made-up receipts that cover the demo checklists, plus one that matches nothing |
 | Browser checks | `npx -y agent-browser --session <name> <cmd>` | Not on PATH. The first `open` in a session starts a daemon, and the shell tool reports `ChildProcess.kill`, but the session keeps working. Use two sessions for live-update checks |
 | Call a Server Action directly | See RESEARCH §2.7 | For adversarial tests (over-pledge, drafts, races). Action ids differ per build |
 | Pledge invariant | Anonymous GROQ: `*[_type=='need']{_id, 'bad': items[coalesce(pledgedQty,0) != coalesce(math::sum(*[_type=='pledge' && status!='cancelled' && need._ref==^.^._id && itemKey==^._key].quantity),0)]._key}[count(bad) > 0]` | Must return `[]` |

@@ -12,6 +12,7 @@ import {
   startLifecycle,
   type LifecycleView,
 } from '@/lib/lifecycle/engine'
+import {receiptScanId} from '@/lib/proof-match'
 import {getWriteClient} from '@/lib/sanity/write-client'
 import type {Verifier} from '@/lib/verifier'
 import {ACTIONS} from '@/workflows/need-lifecycle'
@@ -65,7 +66,45 @@ export type RecentReview = {
   needId: string | null
   title: string | null
   published: boolean
+  proof: string | null
 }
+
+/** A published request whose receipt is being checked or waits for a verifier. */
+export type ProofDeskItem = {
+  needId: string
+  title: string
+  displayName: string
+  city: string
+  country: string
+  isDemo: boolean | null
+  items: Array<{_key: string; quantity: number; name: string | null; unit: string | null}>
+  proof: {
+    _id: string
+    verdict: string | null
+    reasons: string[] | null
+    coverage: number | null
+    receiptProbability: number | null
+    uploaderDisplayName: string | null
+    submittedAt: string | null
+    lines: Array<{text: string; amount: number | null; ocrSimilarity: number | null}> | null
+    matches: Array<{lineIndex: number; itemKey: string; probability: number}> | null
+    decision: {_id: string; model: string | null; latencyMs: number | null; answers: string | null; error: string | null} | null
+  } | null
+  /** The private photo (JPEG data URL) and raw OCR text. */
+  scan: {image: string | null; ocrText: string | null} | null
+  lifecycle: LifecycleView | null
+}
+
+const PROOF_INBOX_QUERY = `*[_type == "need" && !(_id in path("drafts.**")) && stage in ["proof_check", "proof_review"]]
+  | order(submittedAt asc) {
+    "needId": _id, title, displayName, city, country, isDemo,
+    "items": coalesce(items[]{_key, quantity, "name": supplyItem->name, "unit": supplyItem->unit}, []),
+    "proof": *[_type == "proof" && need._ref == ^._id] | order(submittedAt desc)[0]{
+      _id, verdict, reasons, coverage, receiptProbability, uploaderDisplayName, submittedAt,
+      lines[]{text, amount, ocrSimilarity}, matches[]{lineIndex, itemKey, probability},
+      "decision": decision->{_id, model, latencyMs, answers, error}
+    }
+  }`
 
 const INBOX_QUERY = `*[_type == "need" && _id in path("drafts.**") && stage in ["triage", "review", "publishing"]]
   | order(submittedAt asc) {
@@ -79,7 +118,7 @@ const INBOX_QUERY = `*[_type == "need" && _id in path("drafts.**") && stage in [
   }`
 
 const RECENT_QUERY = `*[_type == "review"] | order(createdAt desc)[0...8]{
-  _id, action, note, reviewerName, createdAt, "needId": subject._ref,
+  _id, action, note, reviewerName, createdAt, "needId": subject._ref, "proof": proof._ref,
   "title": coalesce(*[_id == ^.subject._ref][0].title, *[_id == "drafts." + ^.subject._ref][0].title),
   "published": defined(*[_id == ^.subject._ref][0]._id)
 }`
@@ -94,27 +133,50 @@ function deskState(lifecycle: LifecycleView | null, now: number): DeskState {
     .filter((value): value is string => Boolean(value))
     .map((value) => Date.parse(value))
   const waited = since.length > 0 ? now - Math.min(...since) : 0
-  if (lifecycle.stage === 'review') {
+  if (lifecycle.stage === 'review' || lifecycle.stage === 'proof_review') {
     if (lifecycle.pending.length === 0) return 'decide'
     return waited > STUCK_AFTER_MS ? 'stuck' : 'checking'
   }
-  if (lifecycle.stage === 'triage' || lifecycle.stage === 'publishing') return waited > STUCK_AFTER_MS ? 'stuck' : 'checking'
+  if (['triage', 'publishing', 'proof_check', 'certifying'].includes(lifecycle.stage)) {
+    return waited > STUCK_AFTER_MS ? 'stuck' : 'checking'
+  }
   return 'elsewhere'
 }
 
-export async function loadDesk(): Promise<{items: Array<DeskItem & {state: DeskState}>; recent: RecentReview[]}> {
+export async function loadDesk(): Promise<{
+  items: Array<DeskItem & {state: DeskState}>
+  proofs: Array<ProofDeskItem & {state: DeskState}>
+  recent: RecentReview[]
+}> {
   const client = getWriteClient()
-  const [raw, recent] = await Promise.all([
+  const [raw, proofRows, recent] = await Promise.all([
     client.fetch<Array<Omit<DeskItem, 'lifecycle' | 'needId'> & {_id: string}>>(INBOX_QUERY, {}, {tag: 'vouch.desk.inbox', timeout: TIMEOUT_MS}),
+    client.fetch<Array<Omit<ProofDeskItem, 'lifecycle' | 'scan'>>>(PROOF_INBOX_QUERY, {}, {tag: 'vouch.desk.proofs', timeout: TIMEOUT_MS}),
     client.fetch<RecentReview[]>(RECENT_QUERY, {}, {tag: 'vouch.desk.recent', timeout: TIMEOUT_MS}),
   ])
   const rows = raw.map(({_id, ...row}) => ({...row, needId: _id.replace(/^drafts\./, '')}))
-  const lifecycles = await readLifecycles(rows.map((row) => row.needId))
+  const scanIds = proofRows.flatMap((row) => (row.proof ? [receiptScanId(row.proof._id)] : []))
+  const [lifecycles, scans] = await Promise.all([
+    readLifecycles([...rows.map((row) => row.needId), ...proofRows.map((row) => row.needId)]),
+    scanIds.length
+      ? client.fetch<Array<{_id: string; image: string | null; ocrText: string | null}>>(
+          `*[_type == "receiptScan" && _id in $ids]{_id, image, ocrText}`,
+          {ids: scanIds},
+          {tag: 'vouch.desk.scans', timeout: TIMEOUT_MS},
+        )
+      : Promise.resolve([]),
+  ])
+  const scanById = new Map(scans.map((scan) => [scan._id, scan]))
   const now = Date.now()
   return {
     items: rows.map((row) => {
       const lifecycle = lifecycles.get(row.needId) ?? null
       return {...row, lifecycle, state: deskState(lifecycle, now)}
+    }),
+    proofs: proofRows.map((row) => {
+      const lifecycle = lifecycles.get(row.needId) ?? null
+      const scan = row.proof ? scanById.get(receiptScanId(row.proof._id)) : undefined
+      return {...row, scan: scan ? {image: scan.image, ocrText: scan.ocrText} : null, lifecycle, state: deskState(lifecycle, now)}
     }),
     recent,
   }
@@ -194,6 +256,55 @@ export async function decide(verifier: Verifier, raw: unknown): Promise<DeskActi
       return {ok: false, message: `Your decision was recorded, but it didn't go through: ${why}. It is back in the inbox.`}
     }
     return {ok: true, message: `Recorded. The lifecycle is now in "${after.currentStage}".`, stage: after.currentStage}
+  } catch (error) {
+    return {
+      ok: false,
+      message: `Your decision was recorded, but running its effect failed (${errorMessage(error)}). Use "Retry automatic steps" on this request.`,
+    }
+  }
+}
+
+const PROOF_ID = /^proof-[0-9a-f-]{36}$/
+
+const PROOF_OUTCOMES: Record<string, string> = {
+  fulfilled: 'Accepted: the certificate is issued and the request is marked fulfilled.',
+  open: 'Declined: the request collects pledges again. Your note is shown with the receipt on the public page.',
+}
+
+/** Accept or decline a receipt at `proof_review`, as an action on the request's lifecycle. */
+export async function decideProof(verifier: Verifier, raw: unknown): Promise<DeskActionResult> {
+  const input = isRecord(raw) ? raw : {}
+  const needId = readNeedId(input.needId)
+  const decision = input.decision
+  const proofId = typeof input.proofId === 'string' && PROOF_ID.test(input.proofId) ? input.proofId : null
+  if (!needId || !proofId || (decision !== 'accept' && decision !== 'decline')) {
+    return {ok: false, message: 'That is not a valid receipt decision.'}
+  }
+  const note = readNote(input.note, decision === 'decline')
+  if (!note.ok) return note
+
+  const instance = await readLifecycle(needId)
+  if (!instance) return {ok: false, message: 'This request has no lifecycle.'}
+  if (instance.currentStage !== 'proof_review') {
+    return {ok: false, message: `This request is in "${instance.currentStage}", not waiting for a receipt decision.`}
+  }
+  const underReview = instance.fields.find((field) => field.name === 'proofId')?.value as unknown
+  if (underReview !== proofId) return {ok: false, message: 'A different receipt is under review now. Reload the desk.'}
+
+  const action = decision === 'accept' ? ACTIONS.proofReview.accept : ACTIONS.proofReview.decline
+  try {
+    await fireLifecycle(needId, ACTIONS.proofReview.activity, action, {reviewer: verifier.name, ...(note.note ? {note: note.note} : {})})
+  } catch (error) {
+    return {ok: false, message: engineRefusal(error) ?? `The lifecycle refused the decision: ${errorMessage(error)}`}
+  }
+  try {
+    const {instance: after, drain} = await drainLifecycle(needId)
+    const outcome = PROOF_OUTCOMES[after.currentStage]
+    if (outcome) return {ok: true, message: outcome, stage: after.currentStage}
+    const failed = drain.failed.map((effect) => effect.name)
+    return failed.length > 0
+      ? {ok: false, message: `Your decision was recorded, but a step failed (${failed.join(', ')}). The lifecycle is in "${after.currentStage}".`}
+      : {ok: true, message: `Recorded. The lifecycle is now in "${after.currentStage}".`, stage: after.currentStage}
   } catch (error) {
     return {
       ok: false,

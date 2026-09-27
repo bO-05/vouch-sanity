@@ -1,0 +1,1660 @@
+{
+  "thresholds": {
+    "proofMinMatchProbability": 0.7,
+    "proofMinCoverage": 0.8,
+    "receiptMinProbability": 0.6,
+    "proofMinOcrSimilarity": 0.6
+  },
+  "model": "jev-1.13.0",
+  "rows": [
+    {
+      "name": "groceries → demo-01 (all 4 items)",
+      "needId": "need-demo-01",
+      "expect": "auto_verified",
+      "verdict": {
+        "verdict": "auto_verified",
+        "reasons": [],
+        "receiptProbability": 0.98,
+        "matches": [
+          {
+            "lineIndex": 3,
+            "itemKey": "l1",
+            "probability": 1
+          },
+          {
+            "lineIndex": 4,
+            "itemKey": "l2",
+            "probability": 1
+          },
+          {
+            "lineIndex": 5,
+            "itemKey": "l3",
+            "probability": 1
+          },
+          {
+            "lineIndex": 6,
+            "itemKey": "l4",
+            "probability": 1
+          }
+        ],
+        "coverage": 1,
+        "missing": []
+      },
+      "latencyMs": 602,
+      "inputTokens": 3985,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.98
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "rice",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 0,
+            "rice": 1,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "beans",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 1,
+            "not_a_product": 0,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 6": {
+          "type": "choice",
+          "choice": "pasta",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 0,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 1,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 7": {
+          "type": "choice",
+          "choice": "peanut-butter",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 0,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 1
+          }
+        },
+        "receipt line 8": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.98,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 0.02,
+            "rice": 0,
+            "other_product": 0.98,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 9": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 10": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 11": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 12": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        },
+        "receipt line 13": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "peanut-butter": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "groceries → demo-08 (rice only)",
+      "needId": "need-demo-08",
+      "expect": "needs_review",
+      "verdict": {
+        "verdict": "needs_review",
+        "reasons": [
+          "The receipt shows 1 of 3 checklist items (33%; the policy needs 80% to verify it automatically). Not found: Cooking oil, Eggs."
+        ],
+        "receiptProbability": 0.98,
+        "matches": [
+          {
+            "lineIndex": 3,
+            "itemKey": "l1",
+            "probability": 1
+          }
+        ],
+        "coverage": 0.3333333333333333,
+        "missing": [
+          "Cooking oil",
+          "Eggs"
+        ]
+      },
+      "latencyMs": 784,
+      "inputTokens": 3606,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.98
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 0.99,
+          "probabilities": {
+            "other_product": 0,
+            "cooking-oil": 0,
+            "rice": 0.01,
+            "not_a_product": 0.99,
+            "eggs": 0
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "cooking-oil": 0,
+            "rice": 0,
+            "eggs": 0,
+            "not_a_product": 1
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "cooking-oil": 0,
+            "rice": 0,
+            "not_a_product": 1,
+            "eggs": 0
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "rice",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "cooking-oil": 0,
+            "rice": 1,
+            "not_a_product": 0,
+            "eggs": 0
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 1,
+            "cooking-oil": 0,
+            "rice": 0,
+            "not_a_product": 0,
+            "eggs": 0
+          }
+        },
+        "receipt line 6": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.99,
+          "probabilities": {
+            "other_product": 1,
+            "cooking-oil": 0,
+            "rice": 0,
+            "not_a_product": 0,
+            "eggs": 0
+          }
+        },
+        "receipt line 7": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 1,
+            "cooking-oil": 0,
+            "rice": 0,
+            "not_a_product": 0,
+            "eggs": 0
+          }
+        },
+        "receipt line 8": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 1,
+            "cooking-oil": 0,
+            "rice": 0,
+            "not_a_product": 0,
+            "eggs": 0
+          }
+        },
+        "receipt line 9": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "cooking-oil": 0,
+            "rice": 0,
+            "eggs": 0,
+            "not_a_product": 1
+          }
+        },
+        "receipt line 10": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "cooking-oil": 0,
+            "rice": 0,
+            "eggs": 0,
+            "not_a_product": 1
+          }
+        },
+        "receipt line 11": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "cooking-oil": 0,
+            "rice": 0,
+            "not_a_product": 1,
+            "eggs": 0
+          }
+        },
+        "receipt line 12": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "cooking-oil": 0,
+            "rice": 0,
+            "not_a_product": 1,
+            "eggs": 0
+          }
+        },
+        "receipt line 13": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "cooking-oil": 0,
+            "rice": 0,
+            "not_a_product": 1,
+            "eggs": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "groceries, OCR noise → demo-01",
+      "needId": "need-demo-01",
+      "expect": "either",
+      "verdict": {
+        "verdict": "needs_review",
+        "reasons": [
+          "The receipt shows 3 of 4 checklist items (75%; the policy needs 80% to verify it automatically). Not found: Peanut butter."
+        ],
+        "receiptProbability": 0.93,
+        "matches": [
+          {
+            "lineIndex": 2,
+            "itemKey": "l1",
+            "probability": 1
+          },
+          {
+            "lineIndex": 3,
+            "itemKey": "l2",
+            "probability": 1
+          },
+          {
+            "lineIndex": 4,
+            "itemKey": "l3",
+            "probability": 1
+          }
+        ],
+        "coverage": 0.75,
+        "missing": [
+          "Peanut butter"
+        ]
+      },
+      "latencyMs": 726,
+      "inputTokens": 2602,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.93
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "pasta": 0,
+            "other_product": 0,
+            "not_a_product": 1,
+            "beans": 0,
+            "peanut-butter": 0,
+            "rice": 0
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "pasta": 0,
+            "peanut-butter": 0,
+            "not_a_product": 1,
+            "beans": 0,
+            "other_product": 0,
+            "rice": 0
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "rice",
+          "confidence": 1,
+          "probabilities": {
+            "pasta": 0,
+            "peanut-butter": 0,
+            "not_a_product": 0,
+            "beans": 0,
+            "other_product": 0,
+            "rice": 1
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "beans",
+          "confidence": 1,
+          "probabilities": {
+            "pasta": 0,
+            "peanut-butter": 0,
+            "not_a_product": 0,
+            "beans": 1,
+            "other_product": 0,
+            "rice": 0
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "pasta",
+          "confidence": 1,
+          "probabilities": {
+            "pasta": 1,
+            "other_product": 0,
+            "not_a_product": 0,
+            "beans": 0,
+            "peanut-butter": 0,
+            "rice": 0
+          }
+        },
+        "receipt line 6": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.79,
+          "probabilities": {
+            "pasta": 0,
+            "peanut-butter": 0.17,
+            "not_a_product": 0.01,
+            "beans": 0,
+            "other_product": 0.82,
+            "rice": 0
+          }
+        },
+        "receipt line 7": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "pasta": 0,
+            "other_product": 0,
+            "not_a_product": 1,
+            "beans": 0,
+            "peanut-butter": 0,
+            "rice": 0
+          }
+        },
+        "receipt line 8": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "pasta": 0,
+            "peanut-butter": 0,
+            "not_a_product": 1,
+            "beans": 0,
+            "other_product": 0,
+            "rice": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "partial groceries → demo-01 (2 of 4)",
+      "needId": "need-demo-01",
+      "expect": "needs_review",
+      "verdict": {
+        "verdict": "needs_review",
+        "reasons": [
+          "The receipt shows 2 of 4 checklist items (50%; the policy needs 80% to verify it automatically). Not found: Dried beans, Peanut butter."
+        ],
+        "receiptProbability": 0.97,
+        "matches": [
+          {
+            "lineIndex": 2,
+            "itemKey": "l1",
+            "probability": 1
+          },
+          {
+            "lineIndex": 3,
+            "itemKey": "l3",
+            "probability": 1
+          }
+        ],
+        "coverage": 0.5,
+        "missing": [
+          "Dried beans",
+          "Peanut butter"
+        ]
+      },
+      "latencyMs": 281,
+      "inputTokens": 2577,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.97
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 0.99,
+          "probabilities": {
+            "not_a_product": 0.99,
+            "beans": 0,
+            "pasta": 0,
+            "rice": 0.01,
+            "peanut-butter": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 1,
+            "other_product": 0,
+            "pasta": 0,
+            "rice": 0,
+            "peanut-butter": 0,
+            "beans": 0
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "rice",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 0,
+            "other_product": 0,
+            "pasta": 0,
+            "rice": 1,
+            "peanut-butter": 0,
+            "beans": 0
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "pasta",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 0,
+            "beans": 0,
+            "pasta": 1,
+            "rice": 0,
+            "peanut-butter": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.99,
+          "probabilities": {
+            "not_a_product": 0.01,
+            "beans": 0,
+            "pasta": 0,
+            "rice": 0,
+            "peanut-butter": 0,
+            "other_product": 0.99
+          }
+        },
+        "receipt line 6": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 1,
+            "other_product": 0,
+            "pasta": 0,
+            "rice": 0,
+            "peanut-butter": 0,
+            "beans": 0
+          }
+        },
+        "receipt line 7": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 1,
+            "beans": 0,
+            "pasta": 0,
+            "rice": 0,
+            "peanut-butter": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 8": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 1,
+            "other_product": 0,
+            "pasta": 0,
+            "rice": 0,
+            "peanut-butter": 0,
+            "beans": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "household → demo-05",
+      "needId": "need-demo-05",
+      "expect": "auto_verified",
+      "verdict": {
+        "verdict": "auto_verified",
+        "reasons": [],
+        "receiptProbability": 0.98,
+        "matches": [
+          {
+            "lineIndex": 3,
+            "itemKey": "l1",
+            "probability": 1
+          },
+          {
+            "lineIndex": 4,
+            "itemKey": "l2",
+            "probability": 1
+          },
+          {
+            "lineIndex": 5,
+            "itemKey": "l3",
+            "probability": 1
+          },
+          {
+            "lineIndex": 6,
+            "itemKey": "l4",
+            "probability": 1
+          }
+        ],
+        "coverage": 1,
+        "missing": []
+      },
+      "latencyMs": 303,
+      "inputTokens": 3268,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.98
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "not_a_product": 1,
+            "laundry-detergent": 0,
+            "trash-bags": 0,
+            "all-purpose-cleaner": 0,
+            "bar-soap": 0
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "not_a_product": 1,
+            "laundry-detergent": 0,
+            "trash-bags": 0,
+            "all-purpose-cleaner": 0,
+            "bar-soap": 0
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "not_a_product": 1,
+            "laundry-detergent": 0,
+            "trash-bags": 0,
+            "all-purpose-cleaner": 0,
+            "bar-soap": 0
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "laundry-detergent",
+          "confidence": 1,
+          "probabilities": {
+            "bar-soap": 0,
+            "not_a_product": 0,
+            "laundry-detergent": 1,
+            "trash-bags": 0,
+            "all-purpose-cleaner": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "all-purpose-cleaner",
+          "confidence": 1,
+          "probabilities": {
+            "bar-soap": 0,
+            "not_a_product": 0,
+            "laundry-detergent": 0,
+            "trash-bags": 0,
+            "all-purpose-cleaner": 1,
+            "other_product": 0
+          }
+        },
+        "receipt line 6": {
+          "type": "choice",
+          "choice": "trash-bags",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "not_a_product": 0,
+            "laundry-detergent": 0,
+            "trash-bags": 1,
+            "all-purpose-cleaner": 0,
+            "bar-soap": 0
+          }
+        },
+        "receipt line 7": {
+          "type": "choice",
+          "choice": "bar-soap",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "not_a_product": 0,
+            "laundry-detergent": 0,
+            "trash-bags": 0,
+            "all-purpose-cleaner": 0,
+            "bar-soap": 1
+          }
+        },
+        "receipt line 8": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "not_a_product": 1,
+            "laundry-detergent": 0,
+            "trash-bags": 0,
+            "all-purpose-cleaner": 0,
+            "bar-soap": 0
+          }
+        },
+        "receipt line 9": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "not_a_product": 1,
+            "laundry-detergent": 0,
+            "trash-bags": 0,
+            "all-purpose-cleaner": 0,
+            "bar-soap": 0
+          }
+        },
+        "receipt line 10": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "other_product": 0,
+            "not_a_product": 1,
+            "laundry-detergent": 0,
+            "trash-bags": 0,
+            "all-purpose-cleaner": 0,
+            "bar-soap": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "baby → demo-04 (brand names)",
+      "needId": "need-demo-04",
+      "expect": "auto_verified",
+      "verdict": {
+        "verdict": "auto_verified",
+        "reasons": [],
+        "receiptProbability": 0.98,
+        "matches": [
+          {
+            "lineIndex": 3,
+            "itemKey": "l1",
+            "probability": 0.99
+          },
+          {
+            "lineIndex": 4,
+            "itemKey": "l2",
+            "probability": 1
+          },
+          {
+            "lineIndex": 5,
+            "itemKey": "l3",
+            "probability": 1
+          }
+        ],
+        "coverage": 1,
+        "missing": []
+      },
+      "latencyMs": 283,
+      "inputTokens": 2383,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.98
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "baby-wipes": 0,
+            "diapers": 0,
+            "not_a_product": 1,
+            "infant-formula": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "baby-wipes": 0,
+            "diapers": 0,
+            "not_a_product": 1,
+            "infant-formula": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "baby-wipes": 0,
+            "diapers": 0,
+            "not_a_product": 1,
+            "infant-formula": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "infant-formula",
+          "confidence": 0.99,
+          "probabilities": {
+            "baby-wipes": 0,
+            "diapers": 0,
+            "not_a_product": 0,
+            "infant-formula": 0.99,
+            "other_product": 0.01
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "diapers",
+          "confidence": 1,
+          "probabilities": {
+            "baby-wipes": 0,
+            "diapers": 1,
+            "not_a_product": 0,
+            "infant-formula": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 6": {
+          "type": "choice",
+          "choice": "baby-wipes",
+          "confidence": 1,
+          "probabilities": {
+            "baby-wipes": 1,
+            "diapers": 0,
+            "not_a_product": 0,
+            "infant-formula": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 7": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "baby-wipes": 0,
+            "diapers": 0,
+            "not_a_product": 1,
+            "infant-formula": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 8": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "baby-wipes": 0,
+            "diapers": 0,
+            "not_a_product": 1,
+            "infant-formula": 0,
+            "other_product": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "pharmacy → demo-06 (UK brands)",
+      "needId": "need-demo-06",
+      "expect": "auto_verified",
+      "verdict": {
+        "verdict": "auto_verified",
+        "reasons": [],
+        "receiptProbability": 0.98,
+        "matches": [
+          {
+            "lineIndex": 3,
+            "itemKey": "l1",
+            "probability": 1
+          },
+          {
+            "lineIndex": 4,
+            "itemKey": "l2",
+            "probability": 1
+          },
+          {
+            "lineIndex": 5,
+            "itemKey": "l3",
+            "probability": 0.99
+          }
+        ],
+        "coverage": 1,
+        "missing": []
+      },
+      "latencyMs": 461,
+      "inputTokens": 2349,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.98
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 0.97,
+          "probabilities": {
+            "not_a_product": 0.98,
+            "other_product": 0.01,
+            "thermometer": 0.01,
+            "adhesive-bandages": 0,
+            "childrens-fever-reducer": 0
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 1,
+            "other_product": 0,
+            "thermometer": 0,
+            "adhesive-bandages": 0,
+            "childrens-fever-reducer": 0
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 1,
+            "other_product": 0,
+            "thermometer": 0,
+            "adhesive-bandages": 0,
+            "childrens-fever-reducer": 0
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "thermometer",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 0,
+            "other_product": 0,
+            "thermometer": 1,
+            "adhesive-bandages": 0,
+            "childrens-fever-reducer": 0
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "childrens-fever-reducer",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 0,
+            "other_product": 0,
+            "thermometer": 0,
+            "adhesive-bandages": 0,
+            "childrens-fever-reducer": 1
+          }
+        },
+        "receipt line 6": {
+          "type": "choice",
+          "choice": "adhesive-bandages",
+          "confidence": 0.99,
+          "probabilities": {
+            "not_a_product": 0,
+            "other_product": 0.01,
+            "thermometer": 0,
+            "adhesive-bandages": 0.99,
+            "childrens-fever-reducer": 0
+          }
+        },
+        "receipt line 7": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 1,
+            "other_product": 0,
+            "thermometer": 0,
+            "adhesive-bandages": 0,
+            "childrens-fever-reducer": 0
+          }
+        },
+        "receipt line 8": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 1,
+            "other_product": 0,
+            "thermometer": 0,
+            "adhesive-bandages": 0,
+            "childrens-fever-reducer": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "Indonesian minimarket → demo-08",
+      "needId": "need-demo-08",
+      "expect": "auto_verified",
+      "verdict": {
+        "verdict": "auto_verified",
+        "reasons": [],
+        "receiptProbability": 0.98,
+        "matches": [
+          {
+            "lineIndex": 2,
+            "itemKey": "l1",
+            "probability": 0.99
+          },
+          {
+            "lineIndex": 3,
+            "itemKey": "l2",
+            "probability": 1
+          },
+          {
+            "lineIndex": 4,
+            "itemKey": "l3",
+            "probability": 1
+          }
+        ],
+        "coverage": 1,
+        "missing": []
+      },
+      "latencyMs": 291,
+      "inputTokens": 2390,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.98
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "eggs": 0,
+            "not_a_product": 1,
+            "cooking-oil": 0,
+            "other_product": 0,
+            "rice": 0
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "eggs": 0,
+            "not_a_product": 1,
+            "cooking-oil": 0,
+            "other_product": 0,
+            "rice": 0
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "rice",
+          "confidence": 0.99,
+          "probabilities": {
+            "eggs": 0,
+            "not_a_product": 0,
+            "rice": 0.99,
+            "other_product": 0.01,
+            "cooking-oil": 0
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "cooking-oil",
+          "confidence": 1,
+          "probabilities": {
+            "eggs": 0,
+            "not_a_product": 0,
+            "cooking-oil": 1,
+            "other_product": 0,
+            "rice": 0
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "eggs",
+          "confidence": 1,
+          "probabilities": {
+            "eggs": 1,
+            "not_a_product": 0,
+            "cooking-oil": 0,
+            "other_product": 0,
+            "rice": 0
+          }
+        },
+        "receipt line 6": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "eggs": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "cooking-oil": 0
+          }
+        },
+        "receipt line 7": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "eggs": 0,
+            "not_a_product": 1,
+            "cooking-oil": 0,
+            "other_product": 0,
+            "rice": 0
+          }
+        },
+        "receipt line 8": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "eggs": 0,
+            "not_a_product": 1,
+            "cooking-oil": 0,
+            "other_product": 0,
+            "rice": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "electronics → demo-01 (nothing matches)",
+      "needId": "need-demo-01",
+      "expect": "needs_review",
+      "verdict": {
+        "verdict": "needs_review",
+        "reasons": [
+          "The receipt shows 0 of 4 checklist items (0%; the policy needs 80% to verify it automatically). Not found: Rice, Dried beans, Pasta, Peanut butter."
+        ],
+        "receiptProbability": 0.97,
+        "matches": [],
+        "coverage": 0,
+        "missing": [
+          "Rice",
+          "Dried beans",
+          "Pasta",
+          "Peanut butter"
+        ]
+      },
+      "latencyMs": 464,
+      "inputTokens": 2841,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.97
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 0.98,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 0.98,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0.02
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 1,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.99,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 0.01,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0.99
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.99,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 0.01,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0.99
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.99,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 0.01,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0.99
+          }
+        },
+        "receipt line 6": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 1,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 7": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 1,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 8": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 1,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 9": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 1,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "decoys that only sound like the checklist → demo-01",
+      "needId": "need-demo-01",
+      "expect": "needs_review",
+      "verdict": {
+        "verdict": "needs_review",
+        "reasons": [
+          "The receipt shows 0 of 4 checklist items (0%; the policy needs 80% to verify it automatically). Not found: Rice, Dried beans, Pasta, Peanut butter."
+        ],
+        "receiptProbability": 0.96,
+        "matches": [],
+        "coverage": 0,
+        "missing": [
+          "Rice",
+          "Dried beans",
+          "Pasta",
+          "Peanut butter"
+        ]
+      },
+      "latencyMs": 301,
+      "inputTokens": 2845,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.96
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 0.99,
+          "probabilities": {
+            "pasta": 0,
+            "not_a_product": 0.99,
+            "rice": 0,
+            "other_product": 0.01,
+            "peanut-butter": 0,
+            "beans": 0
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "pasta": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "peanut-butter": 0,
+            "beans": 0
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.95,
+          "probabilities": {
+            "not_a_product": 0,
+            "pasta": 0,
+            "rice": 0.04,
+            "other_product": 0.96,
+            "peanut-butter": 0,
+            "beans": 0
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.79,
+          "probabilities": {
+            "not_a_product": 0.01,
+            "pasta": 0,
+            "rice": 0,
+            "other_product": 0.83,
+            "peanut-butter": 0.16,
+            "beans": 0
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.91,
+          "probabilities": {
+            "pasta": 0.07,
+            "not_a_product": 0.01,
+            "rice": 0,
+            "other_product": 0.92,
+            "peanut-butter": 0,
+            "beans": 0
+          }
+        },
+        "receipt line 6": {
+          "type": "choice",
+          "choice": "other_product",
+          "confidence": 0.92,
+          "probabilities": {
+            "not_a_product": 0.02,
+            "pasta": 0,
+            "peanut-butter": 0,
+            "other_product": 0.93,
+            "rice": 0,
+            "beans": 0.05
+          }
+        },
+        "receipt line 7": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 1,
+            "pasta": 0,
+            "rice": 0,
+            "other_product": 0,
+            "peanut-butter": 0,
+            "beans": 0
+          }
+        },
+        "receipt line 8": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "not_a_product": 1,
+            "pasta": 0,
+            "peanut-butter": 0,
+            "other_product": 0,
+            "rice": 0,
+            "beans": 0
+          }
+        },
+        "receipt line 9": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "pasta": 0,
+            "not_a_product": 1,
+            "rice": 0,
+            "other_product": 0,
+            "peanut-butter": 0,
+            "beans": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "thank-you note, not a receipt → demo-01",
+      "needId": "need-demo-01",
+      "expect": "needs_review",
+      "verdict": {
+        "verdict": "needs_review",
+        "reasons": [
+          "Jev isn't convinced these are the lines of a receipt (p = 0.03; the policy needs 0.60).",
+          "The receipt shows 2 of 4 checklist items (50%; the policy needs 80% to verify it automatically). Not found: Dried beans, Pasta."
+        ],
+        "receiptProbability": 0.03,
+        "matches": [
+          {
+            "lineIndex": 1,
+            "itemKey": "l1",
+            "probability": 0.92
+          },
+          {
+            "lineIndex": 3,
+            "itemKey": "l4",
+            "probability": 0.8
+          }
+        ],
+        "coverage": 0.5,
+        "missing": [
+          "Dried beans",
+          "Pasta"
+        ]
+      },
+      "latencyMs": 272,
+      "inputTokens": 1748,
+      "answers": {
+        "store receipt": {
+          "type": "noul",
+          "noul": 0.03
+        },
+        "receipt line 1": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 1,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 2": {
+          "type": "choice",
+          "choice": "rice",
+          "confidence": 0.9,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 0.08,
+            "peanut-butter": 0,
+            "rice": 0.92,
+            "other_product": 0
+          }
+        },
+        "receipt line 3": {
+          "type": "choice",
+          "choice": "beans",
+          "confidence": 0.6,
+          "probabilities": {
+            "beans": 0.66,
+            "pasta": 0.24,
+            "not_a_product": 0.08,
+            "peanut-butter": 0,
+            "rice": 0.01,
+            "other_product": 0.01
+          }
+        },
+        "receipt line 4": {
+          "type": "choice",
+          "choice": "peanut-butter",
+          "confidence": 0.75,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 0.2,
+            "peanut-butter": 0.8,
+            "rice": 0,
+            "other_product": 0
+          }
+        },
+        "receipt line 5": {
+          "type": "choice",
+          "choice": "not_a_product",
+          "confidence": 1,
+          "probabilities": {
+            "beans": 0,
+            "pasta": 0,
+            "not_a_product": 1,
+            "peanut-butter": 0,
+            "rice": 0,
+            "other_product": 0
+          }
+        }
+      }
+    }
+  ]
+}

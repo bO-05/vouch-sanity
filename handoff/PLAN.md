@@ -102,13 +102,21 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
     - Unauthenticated and forged-cookie Server Action POSTs were refused.
     - The 17 older requests were adopted (not re-triaged).
     - A PayPal plea that auto-published exposed a gap in the payment flag question. It was reworded in the policy; calibration is 37/37.
-- [ ] Day 5 (Oct 1): proof flow (Tesseract.js + editable lines + Jev match) + certificate.
-  - The proof stages are already deployed in the lifecycle (`open` → `submit-proof` → `proof_check` [`jev-proof`] → `certifying` [`issue-certificate`] or `proof_review` [accept/decline]). Handlers go in `web/src/lib/lifecycle/effects.ts`.
-  - Proof reviews go on the desk. A changed definition becomes v2; running instances stay on v1.
+- [x] Day 5 (Oct 1, done Sep 27): proof flow (Tesseract.js + editable lines + Jev match) + certificate. No definition change was needed: v1 already declared the proof stages.
+  - *Verified Sep 27 on production (`dpl_FfkkSLjqCfxTZ8AbygNwtNHwwiWw`):*
+    - Groceries sample on need-demo-08: read in the browser in 8.1 s → `auto_verified` (3/3 at p = 1.00) → certificate 10.4 s after submit → fulfilled.
+    - Electronics sample on need-demo-06 → desk → declined with a note → back to `open`. Then the pharmacy sample → verified → fulfilled in 14.5 s. So the lifecycle re-enters the receipt check correctly.
+    - A rewritten line on need-demo-01 (OCR similarity 0.51 < 0.60) → desk → accepted → certificate "verified by volunteer verifier Bram".
+    - The certificate hash recomputes in the browser; a tampered payload shows a mismatch; Node's SHA-256 of the stored payload is equal.
+    - Anonymous reads see 0 receipt scans, 0 reviews and 0 drafts. The pledge invariant holds.
+  - Calibration on 11 synthetic receipts: 11/11 (`web/scripts/calibrate-proof.ts`).
+  - Known limit: one receipt must cover the whole checklist; quantities aren't checked.
 - [ ] Day 6 (Oct 2): polish, policy-as-content, empty/error states; a simple per-IP rate limit on pledges, catalog matches and submissions (each submission costs 2 Jev calls and a draft); COULD items only if all MUST are green.
   - Idea: a trail "state check" that recomputes each decision's state from the published text and compares it with `stateDigest`.
 - [ ] Day 7 (Oct 3): full production run of every DoD step; demo reset script (delete non-demo pledges, proofs and test docs, then `npm run seed`) and seed demo data; demo video + screenshots.
   - The reset must also delete the `prod` workflow instances and re-run `web/scripts/workflow-migrate.ts`, since re-seeding resets `need-demo-09/10` to `intake`.
+  - Day 5 test data to reset: need-demo-01, 06 and 08 are fulfilled. Delete their proofs, the `receipt-scan.*` docs, `certificate-demo-*`, the receipt reviews and the `proof_match` decisions. The re-seed puts the requests back to `open`, and the migration re-adopts them at `open`.
+  - Add a rate limit on receipt uploads to Day 6's list (each upload is a Jev call plus about 0.5 MB in Sanity).
   - Rate-limit desk sign-in attempts too (Day 6).
 - [ ] Day 8 (Oct 4): DEV post from `handoff/BUILD_LOG.md` (Path Two template); publish by noon PDT.
 

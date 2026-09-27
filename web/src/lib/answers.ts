@@ -54,6 +54,25 @@ function catalogRows(entries: Array<[string, unknown]>): AnswerRow[] {
   ]
 }
 
+/** Proof-match decisions ask one choice per receipt line; lines that bought nothing on the checklist are counted. */
+function proofRows(entries: Array<[string, unknown]>): AnswerRow[] {
+  let otherProduct = 0
+  let notProduct = 0
+  const rows: AnswerRow[] = []
+  for (const [question, answer] of entries) {
+    if (isRecord(answer) && answer.type === 'choice' && answer.choice === 'other_product') otherProduct++
+    else if (isRecord(answer) && answer.type === 'choice' && answer.choice === 'not_a_product') notProduct++
+    else rows.push({question, answer: describe(answer)})
+  }
+  if (otherProduct + notProduct > 0) {
+    rows.push({
+      question: `${otherProduct + notProduct} other receipt lines`,
+      answer: `${otherProduct} “another product”, ${notProduct} “not a product” (store, totals, payment…)`,
+    })
+  }
+  return rows
+}
+
 /** Returns null when the text isn't valid answers JSON, so the caller can show it raw. */
 export function answerRows(answersJson: string | null, kind?: string): AnswerRow[] | null {
   if (!answersJson) return []
@@ -62,6 +81,7 @@ export function answerRows(answersJson: string | null, kind?: string): AnswerRow
     if (!isRecord(parsed)) return null
     const entries = Object.entries(parsed)
     if (kind === 'catalog_match') return catalogRows(entries)
+    if (kind === 'proof_match') return proofRows(entries)
     return entries.map(([question, answer]) => ({question, answer: describe(answer)}))
   } catch {
     return null

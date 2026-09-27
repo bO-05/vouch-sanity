@@ -1,6 +1,6 @@
 'use server'
 
-import {decide, retryAutomaticSteps, startMissingLifecycle, type DeskActionResult} from '@/lib/desk'
+import {decide, decideProof, retryAutomaticSteps, startMissingLifecycle, type DeskActionResult} from '@/lib/desk'
 import {endVerifierSession, readVerifier, startVerifierSession} from '@/lib/verifier'
 
 /**
@@ -26,6 +26,13 @@ export type DecideInput = {needId: string; decision: 'approve' | 'send_back' | '
 export async function decideAction(input: DecideInput): Promise<DeskActionResult> {
   const verifier = await readVerifier()
   return verifier ? decide(verifier, input) : SIGN_IN_FIRST
+}
+
+export type DecideProofInput = {needId: string; proofId: string; decision: 'accept' | 'decline'; note: string}
+
+export async function decideProofAction(input: DecideProofInput): Promise<DeskActionResult> {
+  const verifier = await readVerifier()
+  return verifier ? decideProof(verifier, input) : SIGN_IN_FIRST
 }
 
 export async function retryAction(input: {needId: string}): Promise<DeskActionResult> {

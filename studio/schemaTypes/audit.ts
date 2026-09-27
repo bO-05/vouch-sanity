@@ -103,6 +103,14 @@ export const review = defineType({
       validation: (rule) => rule.required(),
     }),
     defineField({
+      name: 'proof',
+      title: 'Receipt (for receipt reviews)',
+      type: 'reference',
+      to: [{type: 'proof'}],
+      weak: true,
+      description: 'Set when the verifier accepted or declined a receipt: approve = accepted, reject = declined.',
+    }),
+    defineField({
       name: 'action',
       type: 'string',
       options: {list: REVIEW_ACTIONS},

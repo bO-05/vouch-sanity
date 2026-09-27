@@ -121,6 +121,14 @@ export const receiptLine = defineType({
       type: 'number',
       description: 'Price printed on the line, if one was read.',
     }),
+    defineField({
+      name: 'ocrSimilarity',
+      title: 'Similarity to what OCR read',
+      type: 'number',
+      description:
+        'Computed by the server: 1 means the uploader left the line as OCR read it from the photo. Matched lines below the policy threshold go to a verifier.',
+      validation: (rule) => rule.min(0).max(1),
+    }),
   ],
   preview: {
     select: {text: 'text', amount: 'amount'},
@@ -260,12 +268,17 @@ export const policyThresholds = defineType({
     probability(
       'proofMinCoverage',
       'Proof: minimum coverage',
-      'Share of pledged checklist lines that must be matched for automatic verification.',
+      'Share of checklist lines that must be matched to a receipt line for automatic verification.',
     ),
     probability(
       'receiptMinProbability',
       'Proof: minimum receipt probability',
       'Minimum probability that the uploaded text is a store receipt at all.',
+    ),
+    probability(
+      'proofMinOcrSimilarity',
+      'Proof: minimum similarity to the OCR text',
+      "Jev reads text, not the photo. A matched receipt line must be at least this similar to a line OCR read from the photo; lines the uploader rewrote go to a verifier, who compares them with the photo.",
     ),
   ],
 })

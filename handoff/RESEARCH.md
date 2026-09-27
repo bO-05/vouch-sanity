@@ -189,5 +189,8 @@ Docs index for agents: https://www.sanity.io/docs/llms.txt
 ## 4. Browser-side tools
 
 - **Tesseract.js** (free OCR in the browser, no key): `createWorker('eng')` → `worker.recognize(image)` → `data.text` / lines. Downloads worker + language data from a CDN on first use. Receipts improve with preprocessing (grayscale, contrast, upscale). Always show editable lines before matching.
+  - Verified Day 5 with **7.0.0**: the browser build loads its worker from jsDelivr (`src/worker/browser/defaultOptions.js`), and the core and `eng` data from CDNs too. Nothing needs configuring in Next.js 16 when it's loaded with `await import('tesseract.js')` in a click handler. `PSM` and `OEM` are runtime exports.
+  - `tessedit_pageseg_mode: PSM.SINGLE_BLOCK` keeps a product and its price on one line. The first sample read took 8.1 s on production, including the model download, and all 15 lines were right except `16OZ` → `160Z`.
+- **Sanity assets are not private.** Asset files are served to anyone with the URL, and asset documents (`image-…` ids, no dot) in a public dataset can be listed with GROQ. So receipt photos are stored as JPEG data URLs inside private dotted-id documents (`receipt-scan.<id>`), which only the server reads.
 - **Web Speech API**: `window.SpeechRecognition || window.webkitSpeechRecognition`; Chrome/Edge/Safari, not Firefox; needs HTTPS (or localhost); set `lang` for the spoken language. Always offer text input.
 - **Web Crypto**: `crypto.subtle.digest('SHA-256', bytes)` for the certificate check.

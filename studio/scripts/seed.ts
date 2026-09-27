@@ -133,8 +133,9 @@ const ITEMS: SeedItem[] = [
 
 // ---------------------------------------------------------------------------
 // Policy singleton. Triage thresholds were calibrated on Sep 27 against 33 synthetic pleas
-// (web/scripts/calibrate-triage.ts, results in handoff/calibration/); proof thresholds are still
-// starting guesses. Flag questions name the field Jev reads (`request`) instead of "the text".
+// (web/scripts/calibrate-triage.ts); the proof thresholds on 11 synthetic receipts
+// (web/scripts/calibrate-proof.ts). Results in handoff/calibration/. Flag questions name the field
+// Jev reads (`request`) instead of "the text".
 // ---------------------------------------------------------------------------
 const POLICY = {
   _id: 'policy',
@@ -147,6 +148,7 @@ const POLICY = {
     proofMinMatchProbability: 0.7,
     proofMinCoverage: 0.8,
     receiptMinProbability: 0.6,
+    proofMinOcrSimilarity: 0.6,
   },
   urgencyLevels: [
     'Can wait: helpful within the next few weeks; no one is going without essentials right now.',

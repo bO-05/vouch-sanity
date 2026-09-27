@@ -13,7 +13,7 @@ export async function loadPrivateTrail(needId: string): Promise<{reviews: NeedRe
   const [reviews, instance] = await Promise.all([
     getWriteClient()
       .fetch<NeedReview[]>(
-        `*[_type == "review" && subject._ref == $id] | order(createdAt asc){_id, action, note, reviewerName, createdAt}`,
+        `*[_type == "review" && subject._ref == $id] | order(createdAt asc){_id, action, note, reviewerName, createdAt, "proof": proof._ref}`,
         {id: needId},
         {tag: 'vouch.trail.reviews', timeout: 15_000},
       )
@@ -22,8 +22,10 @@ export async function loadPrivateTrail(needId: string): Promise<{reviews: NeedRe
   ])
   return {
     // A send-back or rejection note was written to the requester privately (it may mention words they
-    // later removed), so the public trail shows the action only. Approval notes are public by design.
-    reviews: reviews.map((review) => (review.action === 'approve' ? review : {...review, note: null})),
+    // later removed), so the public trail shows the action only. Approval notes are public by design,
+    // and so are receipt decisions: they are about the (public) receipt, and the uploader has no
+    // private page to read them on.
+    reviews: reviews.map((review) => (review.action === 'approve' || review.proof ? review : {...review, note: null})),
     lifecycle: instance ? viewLifecycle(instance) : null,
   }
 }

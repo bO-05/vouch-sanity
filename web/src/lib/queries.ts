@@ -77,9 +77,25 @@ export const NEED_QUERY = defineQuery(`
     "pledges": *[_type == "pledge" && need._ref == ^._id && status != "cancelled"]
       | order(pledgedAt desc) {_id, itemKey, quantity, donorDisplayName, status, pledgedAt, isDemo},
     "decisions": *[_type == "decision" && subject._ref == ^._id]
-      | order(createdAt asc) {_id, kind, model, outcome, error, latencyMs, createdAt, answers}
+      | order(createdAt asc) {_id, kind, model, outcome, error, latencyMs, createdAt, answers},
+    "proofs": *[_type == "proof" && need._ref == ^._id] | order(submittedAt desc) {
+      _id, verdict, coverage, reasons, uploaderDisplayName, submittedAt,
+      "lines": lines[]{text}, "matches": matches[]{lineIndex, itemKey, probability}
+    },
+    "certificate": *[_type == "certificate" && need._ref == ^._id][0]{_id, sha256, issuedAt}
   }
 `)
+
+export type NeedProof = {
+  _id: string
+  verdict: string | null
+  coverage: number | null
+  reasons: string[] | null
+  uploaderDisplayName: string | null
+  submittedAt: string | null
+  lines: Array<{text: string}> | null
+  matches: Array<{lineIndex: number; itemKey: string; probability: number}> | null
+}
 
 export type NeedPledge = {
   _id: string
@@ -110,6 +126,8 @@ export type NeedReview = {
   note: string | null
   reviewerName: string
   createdAt: string | null
+  /** Set when the review is about a receipt (accepted or declined). */
+  proof: string | null
 }
 
 export type NeedDetail = {
@@ -131,6 +149,40 @@ export type NeedDetail = {
   items: FeedItem[] | null
   pledges: NeedPledge[]
   decisions: NeedDecision[]
+  proofs: NeedProof[]
+  certificate: {_id: string; sha256: string; issuedAt: string | null} | null
+}
+
+/** What the receipt page needs: the published request and its checklist. */
+export const PROOF_PAGE_QUERY = defineQuery(`
+  *[_type == "need" && _id == $id][0]{
+    _id, title, displayName, city, stage,
+    "items": items[]{_key, quantity, "name": supplyItem->name, "unit": supplyItem->unit}
+  }
+`)
+
+export type ProofPageNeed = {
+  _id: string
+  title: string
+  displayName: string
+  city: string
+  stage: string
+  items: Array<{_key: string; quantity: number; name: string | null; unit: string | null}> | null
+}
+
+/** A published certificate (public). The payload is the exact text that was hashed. */
+export const CERTIFICATE_QUERY = defineQuery(`
+  *[_type == "certificate" && _id == $id][0]{
+    _id, payload, sha256, issuedAt, "need": need->{_id, title, displayName, city, country}
+  }
+`)
+
+export type CertificateDetail = {
+  _id: string
+  payload: string
+  sha256: string
+  issuedAt: string | null
+  need: {_id: string; title: string; displayName: string; city: string; country: string} | null
 }
 
 export const CATEGORY_CRITERIA_QUERY = defineQuery(`

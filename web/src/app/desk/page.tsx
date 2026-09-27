@@ -3,17 +3,19 @@ import Link from 'next/link'
 import type {ReactNode} from 'react'
 import {LifecycleSteps} from '@/components/lifecycle-steps'
 import {answerRows} from '@/lib/answers'
-import {loadDesk, type DeskItem, type DeskState, type RecentReview} from '@/lib/desk'
+import {loadDesk, type DeskItem, type DeskState, type ProofDeskItem, type RecentReview} from '@/lib/desk'
 import {timeAgo} from '@/lib/format'
 import {isVerifierConfigured, readVerifier} from '@/lib/verifier'
 import {
   LANGUAGE_LABELS,
   LIFECYCLE_STAGE_LABELS,
+  PROOF_REVIEW_ACTION_LABELS,
+  PROOF_VERDICT_LABELS,
   REVIEW_ACTION_LABELS,
   TRIAGE_OUTCOME_LABELS,
   URGENCY_LABELS,
 } from '@/lib/vocab'
-import {DecisionPanel, RecoveryPanel, SignInForm, SignOutButton} from './desk-client'
+import {DecisionPanel, ProofDecisionPanel, RecoveryPanel, SignInForm, SignOutButton} from './desk-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -134,6 +136,139 @@ function DeskCard({item, state}: {item: DeskItem; state: DeskState}) {
   )
 }
 
+function ProofDeskCard({item, state}: {item: ProofDeskItem; state: DeskState}) {
+  const proof = item.proof
+  const lines = proof?.lines ?? []
+  const matchByLine = new Map((proof?.matches ?? []).map((match) => [match.lineIndex, match]))
+  const itemNames = new Map(item.items.map((line) => [line._key, line.name ?? 'Unknown item']))
+  const rows = proof?.decision ? answerRows(proof.decision.answers, 'proof_match') : null
+  return (
+    <article className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 sm:p-6">
+      <div className="flex flex-wrap items-center gap-2">
+        <Chip tone="amber">Receipt · {PROOF_VERDICT_LABELS[proof?.verdict ?? 'pending'] ?? proof?.verdict}</Chip>
+        {typeof proof?.coverage === 'number' ? <Chip>covers {Math.round(proof.coverage * 100)}%</Chip> : null}
+        {item.isDemo ? <Chip tone="outline">Demo request</Chip> : null}
+      </div>
+      <div className="flex flex-col gap-1">
+        <h3 className="text-xl font-semibold">
+          <Link href={`/requests/${item.needId}`} className="hover:text-amber">
+            {item.title}
+          </Link>
+        </h3>
+        <p className="text-sm text-muted">
+          {item.displayName} · {item.city}, {item.country}
+          {proof ? ` · receipt from ${proof.uploaderDisplayName ?? 'someone'} ${timeAgo(proof.submittedAt) ?? ''}` : ''}
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_16rem]">
+        <div className="flex flex-col gap-3 text-sm">
+          <div>
+            <p className="font-medium">Checklist</p>
+            <ul className="text-muted">
+              {item.items.map((line) => (
+                <li key={line._key}>
+                  {line.quantity} × {line.name ?? 'Unknown item'}
+                  {line.unit ? ` (${line.unit})` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="font-medium">Receipt lines (after the uploader&apos;s corrections)</p>
+            <ol className="flex flex-col gap-0.5">
+              {lines.map((line, index) => {
+                const match = matchByLine.get(index)
+                const similarity = typeof line.ocrSimilarity === 'number' ? line.ocrSimilarity : null
+                return (
+                  <li key={index} className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="w-5 text-right font-mono text-xs text-muted">{index + 1}</span>
+                    <span className="font-mono text-xs">{line.text}</span>
+                    {match ? (
+                      <span className="text-xs text-amber">
+                        → {itemNames.get(match.itemKey)} (p = {match.probability.toFixed(2)})
+                      </span>
+                    ) : null}
+                    {similarity !== null && similarity < 1 ? (
+                      <span className="text-xs text-muted">edited · {Math.round(similarity * 100)}% like the OCR</span>
+                    ) : null}
+                  </li>
+                )
+              })}
+            </ol>
+          </div>
+        </div>
+        {item.scan?.image ? (
+          <figure className="overflow-hidden rounded-xl border border-border">
+            {/* eslint-disable-next-line @next/next/no-img-element -- a private data URL read by the server, not an optimizable remote image */}
+            <img src={item.scan.image} alt={`Receipt photo for “${item.title}”`} className="max-h-[28rem] w-full object-contain" />
+            <figcaption className="p-2 text-xs text-muted">The uploaded photo (private: only verifiers see it).</figcaption>
+          </figure>
+        ) : (
+          <p className="text-sm text-muted">No photo found for this receipt.</p>
+        )}
+      </div>
+
+      {proof?.reasons?.length ? (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-medium">Why it came to a person</p>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
+            {proof.reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {item.scan?.ocrText ? (
+        <details className="rounded-xl border border-border p-3 text-sm">
+          <summary className="cursor-pointer font-medium">Raw OCR text (before the uploader&apos;s corrections)</summary>
+          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-xs text-muted">{item.scan.ocrText}</pre>
+        </details>
+      ) : null}
+
+      {proof?.decision ? (
+        <details className="rounded-xl border border-border p-3 text-sm">
+          <summary className="cursor-pointer font-medium">
+            Jev&apos;s typed answers{' '}
+            <span className="font-normal text-muted">
+              ({[proof.decision.model, typeof proof.decision.latencyMs === 'number' ? `${proof.decision.latencyMs} ms` : null].filter(Boolean).join(' · ')})
+            </span>
+          </summary>
+          {proof.decision.error ? <p className="mt-2 text-danger">{proof.decision.error}</p> : null}
+          {rows && rows.length > 0 ? (
+            <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+              {rows.map((row) => (
+                <div key={row.question} className="contents">
+                  <dt className="font-mono text-xs leading-5 text-muted">{row.question}</dt>
+                  <dd>{row.answer}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </details>
+      ) : null}
+
+      {item.lifecycle ? (
+        <details className="text-sm" open={state !== 'decide'}>
+          <summary className="cursor-pointer font-medium">
+            Lifecycle: {LIFECYCLE_STAGE_LABELS[item.lifecycle.stage] ?? item.lifecycle.stage}
+          </summary>
+          <div className="mt-2">
+            <LifecycleSteps lifecycle={item.lifecycle} />
+          </div>
+        </details>
+      ) : null}
+
+      {state === 'decide' && proof ? <ProofDecisionPanel needId={item.needId} proofId={proof._id} /> : null}
+      {state === 'stuck' ? <RecoveryPanel needId={item.needId} mode="stuck" /> : null}
+      {state === 'checking' ? (
+        <p className="border-t border-border pt-4 text-sm text-muted">Automatic steps are running. Reload in a few seconds.</p>
+      ) : null}
+    </article>
+  )
+}
+
 function Recent({reviews}: {reviews: RecentReview[]}) {
   if (reviews.length === 0) return null
   return (
@@ -143,7 +278,8 @@ function Recent({reviews}: {reviews: RecentReview[]}) {
         {reviews.map((review) => (
           <li key={review._id} className="flex flex-wrap items-baseline justify-between gap-2">
             <span>
-              <span className="font-medium">{review.reviewerName}</span> {(REVIEW_ACTION_LABELS[review.action] ?? review.action).toLowerCase()}{' '}
+              <span className="font-medium">{review.reviewerName}</span>{' '}
+              {((review.proof ? `${PROOF_REVIEW_ACTION_LABELS[review.action]} for` : REVIEW_ACTION_LABELS[review.action]) ?? review.action).toLowerCase()}{' '}
               {review.published && review.needId ? (
                 <Link href={`/requests/${review.needId}`} className="text-amber hover:underline">
                   {review.title ?? 'a request'}
@@ -199,12 +335,14 @@ async function DeskInbox({name}: {name: string}) {
     loadError = error instanceof Error ? error.message : 'Unknown error'
   }
   const items = (data?.items ?? []).map((item) => ({item, state: item.state}))
+  const proofs = data?.proofs ?? []
 
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
         <p>
-          Signed in as <span className="font-medium">{name}</span>. {items.length} request{items.length === 1 ? '' : 's'} in the inbox.
+          Signed in as <span className="font-medium">{name}</span>. {items.length} request{items.length === 1 ? '' : 's'} and{' '}
+          {proofs.length} receipt{proofs.length === 1 ? '' : 's'} in the inbox.
         </p>
         <SignOutButton />
       </div>
@@ -214,7 +352,7 @@ async function DeskInbox({name}: {name: string}) {
           <p className="mt-1 font-mono text-xs text-muted">{loadError}</p>
         </div>
       ) : items.length === 0 ? (
-        <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">Nothing is waiting for a verifier right now.</p>
+        <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">No requests are waiting for a verifier right now.</p>
       ) : (
         <div className="flex flex-col gap-6">
           {items.map(({item, state}) => (
@@ -222,6 +360,14 @@ async function DeskInbox({name}: {name: string}) {
           ))}
         </div>
       )}
+      {proofs.length > 0 ? (
+        <section className="flex flex-col gap-4">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted">Receipts</h2>
+          {proofs.map((item) => (
+            <ProofDeskCard key={item.needId} item={item} state={item.state} />
+          ))}
+        </section>
+      ) : null}
       <Recent reviews={data?.recent ?? []} />
     </>
   )

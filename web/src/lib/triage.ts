@@ -31,6 +31,7 @@ export type PolicyThresholds = {
   proofMinMatchProbability: number
   proofMinCoverage: number
   receiptMinProbability: number
+  proofMinOcrSimilarity: number
 }
 
 export type Policy = {
@@ -75,6 +76,7 @@ const THRESHOLD_NAMES: Array<keyof PolicyThresholds> = [
   'proofMinMatchProbability',
   'proofMinCoverage',
   'receiptMinProbability',
+  'proofMinOcrSimilarity',
 ]
 
 function isRecord(value: unknown): value is Record<string, unknown> {

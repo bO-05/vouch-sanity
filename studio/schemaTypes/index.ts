@@ -1,6 +1,6 @@
 import {decision, review} from './audit'
 import {category, supplyItem} from './catalog'
-import {certificate, pledge, proof} from './fulfillment'
+import {certificate, pledge, proof, receiptScan} from './fulfillment'
 import {need} from './need'
 import {
   flagQuestion,
@@ -18,6 +18,7 @@ export const schemaTypes = [
   need,
   pledge,
   proof,
+  receiptScan,
   certificate,
   decision,
   review,

@@ -4,7 +4,7 @@ import {useRouter} from 'next/navigation'
 import {useActionState, useId, useState} from 'react'
 import {dangerButton, Field, inputClass, primaryButton, secondaryButton} from '@/components/form'
 import type {DeskActionResult} from '@/lib/desk'
-import {decideAction, retryAction, signInAction, signOutAction, startAction, type SignInState} from './actions'
+import {decideAction, decideProofAction, retryAction, signInAction, signOutAction, startAction, type SignInState} from './actions'
 
 const MAX_NOTE = 500
 
@@ -104,6 +104,36 @@ export function DecisionPanel({needId, rev, title}: {needId: string; rev: string
         </button>
         <button type="button" disabled={pending !== null} onClick={() => decide('reject')} className={dangerButton}>
           {pending === 'reject' ? 'Rejecting…' : 'Reject'}
+        </button>
+      </div>
+      <div aria-live="polite">
+        <Outcome result={result} />
+      </div>
+    </div>
+  )
+}
+
+export function ProofDecisionPanel({needId, proofId}: {needId: string; proofId: string}) {
+  const id = useId()
+  const [note, setNote] = useState('')
+  const {pending, result, run} = useDeskAction()
+  const decide = (decision: 'accept' | 'decline') => run(decision, () => decideProofAction({needId, proofId, decision, note}))
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-border pt-4">
+      <Field
+        id={`${id}-note`}
+        label="Note"
+        hint={`Required to decline (shown with the receipt on the public page, so the uploader can fix it). No contact details. ${note.length}/${MAX_NOTE}`}
+      >
+        <textarea id={`${id}-note`} value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={MAX_NOTE} className={inputClass} />
+      </Field>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={pending !== null} onClick={() => decide('accept')} className={primaryButton}>
+          {pending === 'accept' ? 'Issuing the certificate…' : 'Accept the receipt'}
+        </button>
+        <button type="button" disabled={pending !== null} onClick={() => decide('decline')} className={dangerButton}>
+          {pending === 'decline' ? 'Declining…' : 'Decline'}
         </button>
       </div>
       <div aria-live="polite">

@@ -393,3 +393,71 @@ Wrap-ups now happen automatically after each verified milestone, or when I say s
 
 **Next:** Day 5, the proof flow. Receipt upload, then in-browser OCR, then editable lines, then `submit-proof` on the instance. Then the `jev-proof` and `issue-certificate` handlers (the stages are already deployed), and the certificate page. Also Day 7's reset script must nuke and re-adopt the workflow instances.
 
+
+## Day 5: Sun, Sep 27. Receipts close the loop: OCR in the browser, a gate Jev can't talk its way past, and a hash anyone can check
+
+**Goal:** Day 5 in PLAN (planned for Oct 1): the proof flow (Tesseract.js, editable lines, Jev match), the verifier's receipt decisions, and the certificate with an in-browser SHA-256 check. Same prompt: "go" (and "do what you think is correct and necessary for day 5").
+
+**What shipped:**
+- **Upload page** (`/requests/[id]/proof`):
+  - Take a photo, or use one of four made-up sample receipts (`web/public/samples/`).
+  - Tesseract.js 7 reads it **in the browser**. The page downscales and grayscales the image first.
+  - The uploader corrects the lines, deletes what they don't want to share, and submits.
+  - Then it shows the real stages until the verdict.
+- **Lifecycle:** the v1 definition already declared the proof stages on Day 4, so there was no redeploy and no migration. Only handlers were added (`web/src/lib/lifecycle/proof-step.ts`):
+  - `jev-proof`: one fan-out Jev call, then the gate in code.
+  - `issue-certificate`: canonical JSON (sorted keys, no whitespace) plus SHA-256. One certificate per request, with an id derived from the request.
+  - `record-proof-accepted` / `record-proof-declined`.
+- **Privacy:** the dataset is public, and Sanity asset files and asset documents are too. So the photo (a JPEG data URL) and the raw OCR text live in a private dotted-id document, `receipt-scan.<id>`. The public `proof` keeps the corrected lines, the matches, the verdict and the photo's SHA-256.
+- **Verifier desk:** a receipts section. It shows the private photo, the corrected lines with Jev's matches, lines marked "edited · 51 % like the OCR", the code-written reasons, the raw OCR, Jev's typed answers, and Accept / Decline (a note is required to decline).
+- **Certificate page** (`/certificates/[id]`): Web Crypto recomputes the SHA-256 of the exact payload text. Edit one character and it says "Mismatch".
+- **Trail:** the request page shows each receipt (who uploaded it, the verdict, only the matched lines), the receipt reviews, and the certificate hash.
+
+**Question design (calibrated on synthetic receipts, `web/scripts/calibrate-proof.ts`):**
+- The questions:
+  - One noul: "Are the lines in `receipt` the lines of a receipt…?"
+  - One choice per receipt line: which `checklist` item did it buy, "another product", or "not a product" (store, totals, payment…).
+  - Code keeps pairs at or above `proofMinMatchProbability`, assigns at most one line per item (most probable first) and computes coverage.
+- **First attempt: 5/10.**
+  - The state held the lines as an array, and the questions pointed at `receipt.lines[5]`. Jev answered about the neighbouring line: on "SPAGHETTI", pasta got 0.11 and beans 0.32.
+  - It mixed 0- and 1-based positions. "PEANUT BUTTER" was scored as pasta (0.37), and the store's "TOTAL" line was scored as trash bags.
+- **Fix:** every line became a named field (`receipt.line_06`). **Result: 11/11**, including:
+  - Brand names: Similac, Pampers, Calpol, Elastoplast.
+  - An Indonesian receipt: "BERAS PANDAN WANGI" → rice, "TELUR AYAM" → eggs.
+  - Decoys: "RICE CAKES", "PEANUT BUTTER COOKIES", "PASTA SAUCE" and "JELLY BEANS" all → "another product".
+  - A thank-you note: receipt p = 0.03.
+  - Lesson for the post: point Jev at state by name, not by index.
+- **Jev reads text, not the photo.** So code checks that every matched line is close to a line OCR read (character-pair similarity with the OCR text, which stays private). This is a new policy threshold, `proofMinOcrSimilarity = 0.6`, editable in the Studio. Rewriting a line to invent a purchase sends the receipt to a person, who compares it with the photo.
+
+**Verified by** (production https://vouch-sanity.vercel.app, deploy `dpl_FfkkSLjqCfxTZ8AbygNwtNHwwiWw`, functions in cdg1):
+- **Auto-verified:** the groceries sample on need-demo-08.
+  - Read in the browser in 8.1 s, including the model download. All 15 lines were right except `16OZ` → `160Z`.
+  - Submitted at 17:48:46.4. The proof was checked at +6.3 s (Jev 287 ms, 3/3 matches at p = 1.00, receipt p = 0.98).
+  - Certificate `certificate-demo-08` at +10.4 s. The request is `fulfilled`.
+- **Declined, then verified:** the electronics sample on need-demo-06.
+  - Proof review after 9.8 s ("0 of 3 checklist items").
+  - On the desk, the photo rendered (708×888). Declined with a note: the request went back to `open` in 8.9 s.
+  - Then the pharmacy sample: fulfilled 14.5 s after submit. The lifecycle shows open → proof_check → proof_review → open → proof_check → certifying → fulfilled.
+- **Edited line:** "PEANUT BUTTER 160Z 6.96" was rewritten as "SMOOTH PEANUT BUTTER JAR 2 PACK".
+  - Jev still matched it (p = 0.99), but the gate routed it to a person: "similarity 0.51; the policy needs 0.60".
+  - The verifier accepted it, and the certificate says "Verified by volunteer verifier Bram".
+- **Certificates:**
+  - The browser hash equals the stored hash.
+  - A tampered payload shows "Mismatch: the text was changed".
+  - Node's `crypto.createHash('sha256')` of the stored payload equals the stored `sha256`.
+- **Anonymous GROQ:** 0 `receiptScan`, 0 reviews and 0 drafts visible. 4 `proof_match` decisions stored (2 auto_verified, 2 needs_review). The pledge invariant returns `[]`.
+- `npm run typecheck`, `npm run lint` and `npm run build:web` pass. The Studio is redeployed with the new schema.
+
+**What didn't:**
+1. The session started with `package-lock.json` and `web/package.json` deleted from disk (uncommitted; the cause is unknown). Restored with `git restore`, and typecheck passed before any work.
+2. The first production submit worked, but **the page hid its own result**. The server page decided "not open → show a notice" and unmounted the uploader. Submitting changes the request's stage, so Sanity Live refreshed the page and the "Jev is checking…" view disappeared. My browser test waited 120 s for text that never came, while Sanity already said `fulfilled` at +10 s. Fix: the uploader always stays mounted and gets the stage as a prop.
+3. React's lint rule treated my `useSample()` click handler as a hook ("cannot be called inside a callback"). Renamed it to `readSample`.
+4. The calibration's first run: 5/10 (above).
+
+**Decisions:**
+- **No definition change:** v1's proof stages were enough, so no v2 and no migration.
+- **Private photos as data URLs in dotted-id documents**, not Sanity assets (assets are public). The upload is downscaled in the browser to at most about 1.1 MB, and `serverActions.bodySizeLimit` is `2mb`.
+- **Receipt decisions are public** (with the verifier's note), because the uploader has no private page. Send-back and reject notes on requests stay private.
+- **Quantities are not checked**, and one receipt must cover the checklist. Both are documented on the page and in the certificate text.
+
+**Next:** Day 6: polish, rate limits (ask, pledge, catalog match, receipt upload, desk sign-in), empty and error states. Day 7's reset script must also delete the Day 5 test data.

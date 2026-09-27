@@ -6,7 +6,7 @@ import {LifecycleSteps} from '@/components/lifecycle-steps'
 import {answerRows} from '@/lib/answers'
 import {pledgedOn, remainingOn, timeAgo, totals} from '@/lib/format'
 import {isPublicDocumentId} from '@/lib/ids'
-import {NEED_QUERY, type NeedDecision, type NeedDetail} from '@/lib/queries'
+import {NEED_QUERY, type NeedDecision, type NeedDetail, type NeedProof} from '@/lib/queries'
 import {fetchPublished} from '@/lib/sanity/live'
 import {loadPrivateTrail} from '@/lib/trail'
 import {
@@ -14,6 +14,8 @@ import {
   DECISION_OUTCOME_LABELS,
   LANGUAGE_LABELS,
   PLEDGEABLE_STAGE,
+  PROOF_REVIEW_ACTION_LABELS,
+  PROOF_VERDICT_LABELS,
   REVIEW_ACTION_LABELS,
   STAGE_LABELS,
   TRIAGE_OUTCOME_LABELS,
@@ -108,6 +110,99 @@ function DecisionEntry({decision}: {decision: NeedDecision}) {
   )
 }
 
+/** A receipt in the public trail: who uploaded it, the verdict, and only the lines Jev matched. */
+function ProofEntry({proof, itemNames}: {proof: NeedProof; itemNames: Map<string, string>}) {
+  const lines = proof.lines ?? []
+  const matches = proof.matches ?? []
+  const decided = proof.verdict !== 'pending'
+  return (
+    <li className="flex flex-col gap-2 rounded-xl border border-border p-3 text-sm">
+      <p className="font-medium">
+        Receipt uploaded by {proof.uploaderDisplayName ?? 'someone'}
+        <span className="font-normal text-muted">
+          {' '}
+          · {PROOF_VERDICT_LABELS[proof.verdict ?? 'pending'] ?? proof.verdict}
+          {typeof proof.coverage === 'number' ? ` · covers ${Math.round(proof.coverage * 100)}% of the checklist` : ''} ·{' '}
+          {timeAgo(proof.submittedAt)}
+        </span>
+      </p>
+      {matches.length > 0 ? (
+        <ul className="flex flex-col gap-0.5">
+          {matches.map((match) => (
+            <li key={`${match.lineIndex}-${match.itemKey}`}>
+              {itemNames.get(match.itemKey) ?? 'an item'} ← <span className="font-mono text-xs">{lines[match.lineIndex]?.text}</span>{' '}
+              <span className="text-muted">(p = {match.probability.toFixed(2)})</span>
+            </li>
+          ))}
+        </ul>
+      ) : decided ? (
+        <p className="text-muted">No receipt line matched the checklist.</p>
+      ) : null}
+      {proof.reasons?.length ? (
+        <ul className="list-disc pl-5 text-muted">
+          {proof.reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="text-xs text-muted">
+        {lines.length} line{lines.length === 1 ? '' : 's'} read from the photo; only matched lines are shown here. The photo itself is
+        private (volunteer verifiers see it).
+      </p>
+    </li>
+  )
+}
+
+function ReceiptCard({need}: {need: NeedDetail}) {
+  if (need.stage === PLEDGEABLE_STAGE) {
+    return (
+      <Card title="Receipt" id="receipt">
+        <p className="text-sm text-muted">
+          Bought the items? Upload the receipt: your browser reads it, Jev checks it against the checklist, and a verified receipt
+          marks this request fulfilled.
+        </p>
+        <Link
+          href={`/requests/${need._id}/proof`}
+          className="self-start rounded-xl border border-border px-4 py-2.5 text-sm font-medium transition-colors hover:border-amber/60"
+        >
+          Upload the receipt
+        </Link>
+      </Card>
+    )
+  }
+  if (need.stage === 'proof_check') {
+    return (
+      <Card title="Receipt" id="receipt">
+        <p className="text-sm text-muted">Jev is checking a receipt against the checklist right now.</p>
+      </Card>
+    )
+  }
+  if (need.stage === 'proof_review') {
+    return (
+      <Card title="Receipt" id="receipt">
+        <p className="text-sm text-muted">A volunteer verifier is checking the receipt. Pledges are paused meanwhile.</p>
+      </Card>
+    )
+  }
+  if (need.stage === 'fulfilled' && need.certificate) {
+    return (
+      <Card title="Fulfilled" id="receipt">
+        <p className="text-sm">
+          Fulfilled {timeAgo(need.fulfilledAt ?? need.certificate.issuedAt)}. The certificate&apos;s SHA-256 starts with{' '}
+          <span className="font-mono text-xs">{need.certificate.sha256.slice(0, 16)}…</span>
+        </p>
+        <Link
+          href={`/certificates/${need.certificate._id}`}
+          className="self-start rounded-xl bg-amber px-4 py-2.5 text-sm font-semibold text-background"
+        >
+          See and check the certificate
+        </Link>
+      </Card>
+    )
+  }
+  return null
+}
+
 export default async function RequestPage({params}: PageProps<'/requests/[id]'>) {
   const {id} = await params
 
@@ -145,7 +240,8 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
     unit: item.unit,
     remaining: remainingOn(item),
   }))
-  const hasTrail = Boolean(need.triage?.outcome) || need.decisions.length > 0 || reviews.length > 0
+  const hasTrail =
+    Boolean(need.triage?.outcome) || need.decisions.length > 0 || reviews.length > 0 || need.proofs.length > 0
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-5 py-8 sm:px-8">
@@ -260,13 +356,34 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
                 {reviews.map((review) => (
                   <li key={review._id} className="rounded-xl border border-border p-3">
                     <p className="font-medium">
-                      Volunteer {review.reviewerName}: {REVIEW_ACTION_LABELS[review.action] ?? review.action}
+                      Volunteer {review.reviewerName}:{' '}
+                      {(review.proof ? PROOF_REVIEW_ACTION_LABELS[review.action] : REVIEW_ACTION_LABELS[review.action]) ?? review.action}
                       <span className="font-normal text-muted"> · {timeAgo(review.createdAt)}</span>
                     </p>
                     {review.note ? <p className="mt-1 text-muted">{review.note}</p> : null}
                   </li>
                 ))}
               </ol>
+            ) : null}
+
+            {need.proofs.length > 0 ? (
+              <ol className="flex flex-col gap-2">
+                {need.proofs.map((proof) => (
+                  <ProofEntry key={proof._id} proof={proof} itemNames={itemNames} />
+                ))}
+              </ol>
+            ) : null}
+
+            {need.certificate ? (
+              <p className="text-sm">
+                <span className="font-medium">Certificate issued</span>{' '}
+                <span className="text-muted">
+                  · sha256 <span className="font-mono text-xs">{need.certificate.sha256.slice(0, 16)}…</span> ·{' '}
+                </span>
+                <Link href={`/certificates/${need.certificate._id}`} className="text-amber hover:underline">
+                  check it in your browser
+                </Link>
+              </p>
             ) : null}
 
             {lifecycle ? (
@@ -287,6 +404,7 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
         </div>
 
         <aside className="flex flex-col gap-6 lg:sticky lg:top-6 lg:self-start">
+          {need.stage === 'fulfilled' ? <ReceiptCard need={need} /> : null}
           <Card title="Pledge an item" id="pledge">
             {pledgeable ? (
               <PledgeForm needId={need._id} lines={lines} />
@@ -300,6 +418,7 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
               the checklist closes the loop.
             </p>
           </Card>
+          {need.stage !== 'fulfilled' ? <ReceiptCard need={need} /> : null}
 
           <Card title={`Pledges (${need.pledges.length})`} id="pledges">
             {need.pledges.length === 0 ? (

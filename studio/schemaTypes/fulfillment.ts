@@ -66,7 +66,10 @@ export const pledge = defineType({
 /**
  * A receipt showing a request was fulfilled.
  * OCR runs in the uploader's browser (Tesseract.js); the uploader corrects the lines;
- * Jev scores each (line × checklist item) pair; code assigns matches and computes coverage.
+ * Jev picks which checklist item each line bought; code assigns matches, computes coverage and gates.
+ *
+ * This document is public (the dataset is). The photo and the raw OCR text are NOT stored here:
+ * they live in a private `receiptScan` document that only the server (and so the verifier desk) reads.
  */
 export const proof = defineType({
   name: 'proof',
@@ -82,18 +85,11 @@ export const proof = defineType({
       validation: (rule) => rule.required(),
     }),
     defineField({
-      name: 'image',
-      title: 'Receipt image',
-      type: 'image',
-      description: 'Uploaders are asked to hide card numbers and anything personal before uploading.',
-    }),
-    defineField({
-      name: 'ocrText',
-      title: 'Raw OCR text',
-      type: 'text',
-      rows: 6,
+      name: 'uploaderDisplayName',
+      title: 'Uploaded by (display name)',
+      type: 'string',
       readOnly: true,
-      description: "Tesseract.js output from the uploader's browser, before corrections.",
+      validation: (rule) => [rule.max(40), rule.custom(noContactInfo).warning()],
     }),
     defineField({
       name: 'lines',
@@ -102,6 +98,13 @@ export const proof = defineType({
       of: [defineArrayMember({type: 'receiptLine'})],
       readOnly: true,
       description: "Lines after the uploader's corrections. These, not the raw OCR, are what Jev compares.",
+    }),
+    defineField({
+      name: 'imageSha256',
+      title: 'Photo SHA-256',
+      type: 'string',
+      readOnly: true,
+      description: 'Hash of the uploaded photo (computed by the server). The photo itself is private.',
     }),
     defineField({
       name: 'receiptProbability',
@@ -120,7 +123,7 @@ export const proof = defineType({
       name: 'coverage',
       type: 'number',
       readOnly: true,
-      description: 'Share of pledged checklist lines matched to a receipt line, computed by code.',
+      description: 'Share of checklist lines matched to a receipt line, computed by code.',
       validation: (rule) => rule.min(0).max(1),
     }),
     defineField({
@@ -130,6 +133,14 @@ export const proof = defineType({
       initialValue: 'pending',
       options: {list: PROOF_VERDICTS},
     }),
+    defineField({
+      name: 'reasons',
+      type: 'array',
+      of: [defineArrayMember({type: 'string'})],
+      readOnly: true,
+      description: 'Why it went to a verifier. Composed by code from the answers and the policy, never by a model.',
+    }),
+    defineField({name: 'checkedAt', type: 'datetime', readOnly: true}),
     defineField({
       name: 'decision',
       title: 'Jev decision',
@@ -142,13 +153,53 @@ export const proof = defineType({
     defineField({name: 'isDemo', title: 'Demo data', type: 'boolean', initialValue: false}),
   ],
   preview: {
-    select: {needTitle: 'need.title', verdict: 'verdict', coverage: 'coverage', media: 'image'},
-    prepare: ({needTitle, verdict, coverage, media}) => ({
+    select: {needTitle: 'need.title', verdict: 'verdict', coverage: 'coverage'},
+    prepare: ({needTitle, verdict, coverage}) => ({
       title: needTitle ? `Receipt for “${needTitle}”` : 'Receipt',
       subtitle: [verdict, typeof coverage === 'number' ? `${Math.round(coverage * 100)}% covered` : null]
         .filter(Boolean)
         .join(' · '),
-      media,
+    }),
+  },
+})
+
+/**
+ * The private half of a proof: the downscaled photo (a JPEG data URL) and Tesseract's raw text.
+ * Stored under a dotted id (`receipt-scan.<id>`), which the public dataset never exposes. A Sanity
+ * image asset would not do: asset files are served to anyone with the URL, and asset documents in a
+ * public dataset can be listed. Verifiers see the photo on the desk, through the server.
+ */
+export const receiptScan = defineType({
+  name: 'receiptScan',
+  title: 'Receipt scan (private)',
+  type: 'document',
+  icon: BillIcon,
+  readOnly: true,
+  fields: [
+    defineField({name: 'proof', type: 'reference', to: [{type: 'proof'}], weak: true}),
+    defineField({name: 'need', title: 'Request', type: 'reference', to: [{type: 'need'}], weak: true}),
+    defineField({
+      name: 'image',
+      title: 'Photo (JPEG data URL)',
+      type: 'string',
+      hidden: true,
+      description: 'Downscaled in the uploader’s browser before upload.',
+    }),
+    defineField({name: 'imageSha256', title: 'Photo SHA-256', type: 'string'}),
+    defineField({
+      name: 'ocrText',
+      title: 'Raw OCR text',
+      type: 'text',
+      rows: 8,
+      description: "Tesseract.js output from the uploader's browser, before corrections.",
+    }),
+    defineField({name: 'createdAt', type: 'datetime'}),
+  ],
+  preview: {
+    select: {sha: 'imageSha256', createdAt: 'createdAt'},
+    prepare: ({sha, createdAt}) => ({
+      title: 'Receipt scan',
+      subtitle: [createdAt, typeof sha === 'string' ? `sha256 ${sha.slice(0, 12)}…` : null].filter(Boolean).join(' · '),
     }),
   },
 })
@@ -168,6 +219,7 @@ export const certificate = defineType({
       to: [{type: 'need'}],
       validation: (rule) => rule.required(),
     }),
+    defineField({name: 'proof', title: 'Receipt', type: 'reference', to: [{type: 'proof'}], weak: true}),
     defineField({
       name: 'payload',
       type: 'text',
