@@ -1,0 +1,29 @@
+import 'server-only'
+
+import {readLifecycle, viewLifecycle, type LifecycleView} from '@/lib/lifecycle/engine'
+import type {NeedReview} from '@/lib/queries'
+import {getWriteClient} from '@/lib/sanity/write-client'
+
+/**
+ * The private half of a PUBLISHED request's trail: human reviews (stored under the private
+ * `review.*` path because they may be about a draft) and its Sanity Workflows instance. Only call
+ * this for a request that the public client already returned as published.
+ */
+export async function loadPrivateTrail(needId: string): Promise<{reviews: NeedReview[]; lifecycle: LifecycleView | null}> {
+  const [reviews, instance] = await Promise.all([
+    getWriteClient()
+      .fetch<NeedReview[]>(
+        `*[_type == "review" && subject._ref == $id] | order(createdAt asc){_id, action, note, reviewerName, createdAt}`,
+        {id: needId},
+        {tag: 'vouch.trail.reviews', timeout: 15_000},
+      )
+      .catch(() => []),
+    readLifecycle(needId).catch(() => null),
+  ])
+  return {
+    // A send-back or rejection note was written to the requester privately (it may mention words they
+    // later removed), so the public trail shows the action only. Approval notes are public by design.
+    reviews: reviews.map((review) => (review.action === 'approve' ? review : {...review, note: null})),
+    lifecycle: instance ? viewLifecycle(instance) : null,
+  }
+}

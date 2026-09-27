@@ -57,6 +57,27 @@ Docs index for agents: https://www.sanity.io/docs/llms.txt
   ```
 - Effect handler: `const h: EffectHandler = async (params, ctx) => { ...; return {outputs: {flagged: true}} }`. `params` carries the declared `bindings` (e.g. `subject: '$fields.subject._id'`; `extractDocumentId(params.subject)` gives the doc id). `ctx.effectKey` is the idempotency key (handlers may run more than once), plus `ctx.setProgress(field, n)` and `ctx.log()`. Outputs must be declared on the effect (`outputs: [{type: 'boolean', name: 'flagged'}]`).
 - Cookbook's own suggestion we implement: "Confidence scores instead of pass/fail: have a check return a number, and gate needs-human on a threshold." The cookbook's checks use an LLM prompt + JSON parsing + validation; Jev replaces that with typed answers.
+- **Verified Day 4 (Sep 27) with engine 0.35.0:**
+  - **Versions and deploy:**
+    - `sanity workflows …` is built into `@sanity/cli` 8.13, but it bundles engine and CLI **0.32.0**.
+    - `@sanity/workflow-cli@0.35.0` peers on `@sanity/workflow-blueprint@0.35.0`, which peers on `typescript@^6.0.3 || ^7`, giving ERESOLVE with TS 5.9.
+    - We deploy with `engine.deployDefinitions({expectedMinReaderModel: 10, definitions})` (`web/scripts/workflow-deploy.ts`). It's idempotent: the same content keeps the version, and changed content becomes vN+1.
+  - **Definition rules:**
+    - An **effect name must be unique per definition** (it is the registry key), so give each declaration site its own name and share the handler.
+    - Transition `when`s are checked in declaration order, and **a null (unevaluable) condition stops selection**, so guard field reads with `coalesce()`.
+    - A `when` action is a trigger: it fires once per stage visit and re-fires on re-entry.
+    - `filter: '!defined($fields.decision)'` makes the other decision actions disappear once one fired; a second fire throws `ActionDisabledError`.
+    - Terminal stages can't do arrival work, so queue the effect in the previous stage and gate the transition on its `$effectStatus`.
+  - **Documents:** definitions are `prod.need-lifecycle.v1` (`sanity.workflow.definition`) and instances `<tag>.wf-instance.<id>` (`sanity.workflow.instance`). The dotted ids make them **invisible to anonymous queries** in a public dataset. `instanceId` can be caller-chosen (we derive it from the request id).
+  - **Runtime:**
+    - Effect handlers may return `{outputs, ops}`; ops need an explicit `target.scope`.
+    - `drainEffects` runs follow-up effects queued by its own cascade in the same call (triage → publishing → open in one drain).
+    - Content reads default to a drafts-first perspective, so a draft-only subject works.
+  - **Latency:**
+    - Each verb makes **13-31 sequential HTTP requests** (mostly `getDocument` of the instance).
+    - Every commit uses a hard-coded `SYNC_COMMIT = {visibility: "sync"}`, about 0.8 s per commit on our dataset even from Paris.
+    - Measured from Vercel cdg1: startInstance ~3 s, fireAction ~1 s, a triage drain ~3 s, an approve → open drain ~7 s (stub handlers).
+    - Put the functions next to the Content Lake shard (see §2.6).
 
 ### 2.2 Functions (probably not needed)
 - https://www.sanity.io/docs/functions/functions-introduction. Node 24 runtime, default timeout 10 s (max 900), recursion limit 16.
@@ -80,11 +101,20 @@ Docs index for agents: https://www.sanity.io/docs/llms.txt
   - Unattended project creation: `sanity init -y --project-name "Vouch" --organization <orgId> --dataset production --visibility public --template clean --typescript --output-path studio --package-manager npm --no-install --no-git --no-mcp --no-skills`. `--organization` is required in unattended mode; get the id from `sanity organizations list`. This created project `o8hcpsct` with Studio 6.16.
   - Tokens are in the CLI: `sanity tokens add "<label>" --role editor --json -y` prints JSON whose `token` field is the secret. Capture it straight into a git-ignored file and never echo it.
   - Studio hosting: `sanity deploy -y --schema-required --url <host>` builds, deploys the schema and hosts it at `<host>.sanity.studio`. Afterwards add the printed `appId` to `deployment` in `sanity.cli.ts` so later deploys don't prompt.
-  - Built-in topics include `documents` (query/get/create), `schemas`, `datasets`, `tokens`, `cors`, `organizations` and **`workflows`** (deploy/inspect Workflows definitions and instances). The CLI may now cover what `@sanity/workflow-cli` does; check `sanity workflows --help` on Day 4.
+  - Built-in topics include `documents` (query/get/create), `schemas`, `datasets`, `tokens`, `cors`, `organizations` and **`workflows`**.
+    - `workflows` covers deploy, start, fire-action, show, list, diagnose, tail, set-stage, reset-activity, abort and nuke.
+    - **Checked Day 4:** it bundles workflow engine/cli 0.32.0, older than the 0.35.0 runtime, so we deploy programmatically (§2.1).
+  - **Where the data lives:** response header `X-Sanity-Shard: gcp-eu-w1-prod-40034`, so project `o8hcpsct` is in GCP europe-west1 (Belgium). Queries take about 4 ms server-side (`Server-Timing`).
+  - **Reserved query-parameter names in @sanity/client:** `tag`, `perspective`, `timeout`, `token` and similar can't be GROQ params (TS: "not assignable to type 'never'"). Use `$workflowTag`, etc.
   - `sanity documents query '<groq>'` runs as the logged-in user (`--anonymous` = the public view). **Corrected Sep 27:** with an API version of 2025-02-19 or later (e.g. `--api-version 2026-09-01`) the default perspective is `published`, so drafts are hidden *even with your token*. To see drafts, use `--api-version v2021-06-07` (raw perspective). A draft "not found" with a 2026 API version proves nothing.
   - `npx sanity ...` can hang for minutes on this machine. Call the workspace binary `node_modules\.bin\sanity.cmd` instead.
 - Public dataset check (verified): an anonymous `GET https://o8hcpsct.api.sanity.io/v2026-09-01/data/query/production?query=...` returns published documents only. `drafts.*` never appear, even when queried by id.
 - Vercel env vars: with CLI v60, `vercel env add` works non-interactively. We used the REST API instead (`POST /v10/projects/{id}/env?teamId=...&upsert=true`), reading values from `web/.env.local` inside PowerShell so none were printed. Secrets are `type: encrypted`, `NEXT_PUBLIC_*` values are `plain`.
+- **Vercel function region (Day 4):**
+  - `web/vercel.json` `{"regions": ["cdg1"]}` was ignored for CLI deploys from the repo root (`VERCEL_REGION` stayed `iad1`).
+  - What worked is the project setting `PATCH https://api.vercel.com/v9/projects/{id}?slug={team}` with body `{"resourceConfig": {"functionDefaultRegions": ["cdg1"]}}`, using the CLI token from `%APPDATA%\com.vercel.cli\Data\auth.json` (never printed).
+  - Check it with the `x-vercel-id` header (`sin1::cdg1::…` = edge, then function region).
+  - Protected previews: `npx vercel@latest curl <path> --deployment <url> -- <curl flags>` creates a Deployment Protection bypass token for the project on first use.
 - **Vercel CLI must be ≥ 47.2.2.** The global 37.12.1 fails with "This endpoint requires version 47.2.2 or later"; use `npx -y vercel@latest` (60.1.3 on Sep 26). v60 can set the Root Directory: `vercel project update <name> --root-directory web --framework nextjs --node-version 22.x --yes`.
 - More non-interactive CLI commands (verified Sep 27): `sanity documents create <file.json> --replace`, `sanity documents delete <id> [<id>...]`, `sanity cors list`, `sanity cors add <origin> --no-credentials`.
 
@@ -125,6 +155,7 @@ Docs index for agents: https://www.sanity.io/docs/llms.txt
 - Response: `{model: "jev-1.13.0", answers: {...}, usage: {input_tokens, output_tokens}}`.
 - Errors: 401 bad key, 422 validation (body names the field), 429 rate limit, 529 overloaded (retry with backoff; SDK does it).
 - Models: `jev-latest` = `jev-1.13.0` (pin `jev-1.13.0` once thresholds are tuned). 64k tokens per request; 32k for state + the longest question. Rate limits ~250k tokens/s, 1,200 req/min (adjusting dynamically). Price $0.042 per 1M input tokens; output free. **Text only** (no images/audio: OCR first). English is strongest; other languages work less well → watch confidence.
+- From Vercel cdg1 (Paris, Day 4) a triage call takes 239-274 ms, against 129-191 ms from iad1, so TypeSafe is probably US-hosted.
 - Vendor-claimed latency: 70-500 ms end-to-end. **Measured on Sep 26:** a 2-question call (an 8-option choice plus a noul, 636 input tokens) took 514 ms and 439 ms from a Windows laptop in Asia, and 151 ms from Vercel. The response `model` was `jev-1.13.0` (requested as `jev-latest`).
 - Observed answer shapes (SDK 0.6.0): choice → `{type, choice, confidence, probabilities}` (probabilities keyed by label; on a clear case confidence was exactly 1); noul → `{type, noul}` (0.99 on a clear case). A choice can come back with a confidence of exactly 1.0, so thresholds need calibrating on ambiguous pleas, not easy ones.
 

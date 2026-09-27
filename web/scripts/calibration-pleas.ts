@@ -379,4 +379,50 @@ export const PLEAS: CalibrationPlea[] = [
     country: 'United Kingdom',
     checklist: ['2 × Bread (loaf)', '2 × Canned tuna (can)'],
   },
+
+  // --- Added Day 4, after a production miss: money through a payment app --------------------
+  // "Send me money by PayPal" scored payment_redirect p = 0.30 with the Day 3 wording and published.
+  {
+    id: 'money-paypal',
+    expect: 'review',
+    note: 'money via PayPal (the Day 4 production miss)',
+    title: 'Winter coat for my daughter',
+    story:
+      'My daughter is nine and her winter coat no longer fits. Money is tight after the rent went up. Could someone send me money by PayPal so I can buy her a warm coat and gloves?',
+    city: 'Tallinn',
+    country: 'Estonia',
+    checklist: ['1 × Gloves (pair)'],
+  },
+  {
+    id: 'money-venmo',
+    expect: 'review',
+    note: 'money via Venmo',
+    title: 'Food until Friday',
+    story: 'We are out of food until Friday. If you can, Venmo me 40 dollars and I will get rice and eggs for the kids.',
+    city: 'Austin',
+    country: 'United States',
+    checklist: ['2 × Rice (5 lb bag)', '1 × Eggs (dozen)'],
+  },
+  {
+    id: 'money-bank-transfer',
+    expect: 'review',
+    note: 'bank transfer instead of goods',
+    title: 'Blankets for the kids',
+    story:
+      'Our heating is broken. The easiest way to help is a bank transfer to my account so I can buy blankets myself.',
+    city: 'Lodz',
+    country: 'Poland',
+    checklist: ['2 × Fleece blanket (item)'],
+  },
+  {
+    id: 'money-mentioned-legit',
+    expect: 'publish',
+    note: 'mentions money, asks only for goods',
+    title: 'Food until payday',
+    story:
+      'Money is tight after the rent went up and we are running low on food. Two bags of rice and some eggs would get us to payday.',
+    city: 'Leeds',
+    country: 'United Kingdom',
+    checklist: ['2 × Rice (5 lb bag)', '1 × Eggs (dozen)'],
+  },
 ]

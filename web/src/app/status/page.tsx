@@ -1,6 +1,12 @@
 import type {Metadata} from 'next'
 import Link from 'next/link'
+import type {CatalogItem} from '@/lib/catalog-match'
+import {CATALOG_QUERY, CATEGORY_OPTIONS_QUERY} from '@/lib/queries'
+import {fetchPublished} from '@/lib/sanity/live'
 import {StatusView} from './status-view'
+
+// The catalog (for editing a sent-back request) is content: always the current one.
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'My requests',
@@ -8,7 +14,13 @@ export const metadata: Metadata = {
   robots: {index: false, follow: false},
 }
 
-export default function StatusPage() {
+export default async function StatusPage() {
+  // The catalog is only needed to edit a sent-back request; the page still works without it.
+  const [catalog, categories] = await Promise.all([
+    fetchPublished<CatalogItem[]>(CATALOG_QUERY).catch(() => [] as CatalogItem[]),
+    fetchPublished<Array<{title: string}>>(CATEGORY_OPTIONS_QUERY).catch(() => []),
+  ])
+
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-5 py-8 sm:px-8">
       <Link href="/" className="text-sm text-muted hover:text-foreground">
@@ -22,7 +34,7 @@ export default function StatusPage() {
           except to look up your request, and Vouch stores only a fingerprint (SHA-256) of it.
         </p>
       </header>
-      <StatusView />
+      <StatusView catalog={catalog} categoryOrder={categories.map((category) => category.title)} />
     </main>
   )
 }

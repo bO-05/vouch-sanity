@@ -38,6 +38,9 @@ export default function RootLayout({children}: LayoutProps<'/'>) {
             </Link>
             <div className="flex items-center gap-4">
               <LiveStatus />
+              <Link href="/desk" className="hidden text-sm text-muted hover:text-foreground sm:inline">
+                Verifier desk
+              </Link>
               <Link href="/status" className="text-sm text-muted hover:text-foreground">
                 My requests
               </Link>

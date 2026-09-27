@@ -2,11 +2,13 @@ import type {Metadata} from 'next'
 import Link from 'next/link'
 import {notFound} from 'next/navigation'
 import {cache, type ReactNode} from 'react'
+import {LifecycleSteps} from '@/components/lifecycle-steps'
 import {answerRows} from '@/lib/answers'
 import {pledgedOn, remainingOn, timeAgo, totals} from '@/lib/format'
 import {isPublicDocumentId} from '@/lib/ids'
 import {NEED_QUERY, type NeedDecision, type NeedDetail} from '@/lib/queries'
 import {fetchPublished} from '@/lib/sanity/live'
+import {loadPrivateTrail} from '@/lib/trail'
 import {
   DECISION_KIND_LABELS,
   DECISION_OUTCOME_LABELS,
@@ -129,6 +131,8 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
   }
   if (!need) notFound()
 
+  // Published (the public client returned it), so its reviews and lifecycle may be shown.
+  const {reviews, lifecycle} = await loadPrivateTrail(need._id)
   const items = need.items ?? []
   const {pledged, requested, percent} = totals(items)
   const itemNames = new Map(items.map((item) => [item._key, item.name ?? 'Unknown item']))
@@ -141,7 +145,7 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
     unit: item.unit,
     remaining: remainingOn(item),
   }))
-  const hasTrail = Boolean(need.triage?.outcome) || need.decisions.length > 0 || need.reviews.length > 0
+  const hasTrail = Boolean(need.triage?.outcome) || need.decisions.length > 0 || reviews.length > 0
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-5 py-8 sm:px-8">
@@ -251,9 +255,9 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
               </ol>
             ) : null}
 
-            {need.reviews.length > 0 ? (
+            {reviews.length > 0 ? (
               <ol className="flex flex-col gap-2 text-sm">
-                {need.reviews.map((review) => (
+                {reviews.map((review) => (
                   <li key={review._id} className="rounded-xl border border-border p-3">
                     <p className="font-medium">
                       Volunteer {review.reviewerName}: {REVIEW_ACTION_LABELS[review.action] ?? review.action}
@@ -263,6 +267,13 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
                   </li>
                 ))}
               </ol>
+            ) : null}
+
+            {lifecycle ? (
+              <div className="flex flex-col gap-2 border-t border-border pt-4">
+                <p className="text-sm font-medium">Lifecycle</p>
+                <LifecycleSteps lifecycle={lifecycle} />
+              </div>
             ) : null}
 
             {!hasTrail ? (

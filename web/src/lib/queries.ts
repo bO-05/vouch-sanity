@@ -77,9 +77,7 @@ export const NEED_QUERY = defineQuery(`
     "pledges": *[_type == "pledge" && need._ref == ^._id && status != "cancelled"]
       | order(pledgedAt desc) {_id, itemKey, quantity, donorDisplayName, status, pledgedAt, isDemo},
     "decisions": *[_type == "decision" && subject._ref == ^._id]
-      | order(createdAt asc) {_id, kind, model, outcome, error, latencyMs, createdAt, answers},
-    "reviews": *[_type == "review" && subject._ref == ^._id]
-      | order(createdAt asc) {_id, action, note, reviewerName, createdAt}
+      | order(createdAt asc) {_id, kind, model, outcome, error, latencyMs, createdAt, answers}
   }
 `)
 
@@ -105,6 +103,7 @@ export type NeedDecision = {
   answers: string | null
 }
 
+/** Human reviews live under the private `review.*` path; the server reads them (lib/trail.ts). */
 export type NeedReview = {
   _id: string
   action: string
@@ -132,7 +131,6 @@ export type NeedDetail = {
   items: FeedItem[] | null
   pledges: NeedPledge[]
   decisions: NeedDecision[]
-  reviews: NeedReview[]
 }
 
 export const CATEGORY_CRITERIA_QUERY = defineQuery(`

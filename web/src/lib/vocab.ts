@@ -71,3 +71,27 @@ export const PLEDGE_STATUS_LABELS: Record<string, string> = {
 
 /** Only requests in this stage accept new pledges. */
 export const PLEDGEABLE_STAGE = 'open'
+
+/** Stages of the `need-lifecycle` workflow (src/workflows/need-lifecycle.ts), in plain words. */
+export const LIFECYCLE_STAGE_LABELS: Record<string, string> = {
+  triage: 'Jev checks it against the policy',
+  review: 'A volunteer verifier decides',
+  sent_back: 'Back with the requester for changes',
+  publishing: 'Publishing the checked words',
+  open: 'Verified and live',
+  proof_check: 'Jev matches a receipt',
+  proof_review: 'A verifier checks the receipt',
+  certifying: 'Issuing the certificate',
+  fulfilled: 'Fulfilled',
+  rejected: 'Rejected (stays private)',
+}
+
+/** Effects of the lifecycle, in plain words. */
+export const LIFECYCLE_EFFECT_LABELS: Record<string, string> = {
+  'jev-triage': 'Jev triage',
+  'publish-need': 'publishing',
+  'record-send-back': 'recording the send-back',
+  'record-rejection': 'recording the rejection',
+  'jev-proof': 'Jev proof match',
+  'issue-certificate': 'issuing the certificate',
+}

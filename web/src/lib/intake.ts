@@ -11,59 +11,28 @@ import {
   type CatalogItem,
   type ProposedLine,
 } from '@/lib/catalog-match'
+import {errorMessage, isConflict, isRecord, loadIntakeContext, type IntakeContext} from '@/lib/intake-context'
 import {askFieldProblem, tidyFields, type AskFields} from '@/lib/intake-rules'
 import {askJev} from '@/lib/jev'
-import {CATALOG_QUERY, CATEGORY_OPTIONS_QUERY, POLICY_QUERY} from '@/lib/queries'
-import {fetchPublished} from '@/lib/sanity/live'
+import {advanceLater} from '@/lib/lifecycle/advance'
+import {fireLifecycle, readLifecycle} from '@/lib/lifecycle/engine'
 import {getWriteClient} from '@/lib/sanity/write-client'
-import {
-  buildTriageQuestions,
-  gateTriage,
-  parsePolicy,
-  triageDecisionOutcome,
-  triageState,
-  type CategoryOption,
-  type Policy,
-  type TriageVerdict,
-} from '@/lib/triage'
-import {LANGUAGE_LABELS} from '@/lib/vocab'
+import {hashStatusToken} from '@/lib/status'
+import {ACTIONS} from '@/workflows/need-lifecycle'
 
 /**
- * Intake: a neighbor's request goes from words to a draft to (maybe) a published request.
+ * Intake: a neighbor's request goes from words to a private draft, and into the lifecycle.
  *
  * 1. Catalog match (optional UX assist): Jev proposes checklist lines from the catalog.
- * 2. Submit: code validates everything, creates a private DRAFT, asks Jev the triage questions,
- *    and gates the answers against the policy in code.
- *    - Pass → one transaction publishes it (published = verified; drafts are private).
- *    - Otherwise → it stays a draft in `review`, with reasons composed by code.
- *    - Any failure (Jev, policy, Sanity) → review, never an automatic publish.
+ * 2. Submit: code validates everything and creates a private DRAFT. The `need-lifecycle` workflow
+ *    (src/workflows/need-lifecycle.ts) takes it from there: Jev triage, the policy gate in code,
+ *    then publishing (published = verified) or a volunteer verifier. Any failure → a volunteer.
+ * 3. Resubmit: after a verifier sends a request back, the requester edits it on their private
+ *    status page and the lifecycle checks it again from scratch.
  * Every Jev call is recorded as a `decision` by `askJev`.
  */
 
 const REQUEST_TIMEOUT_MS = 15_000
-
-type IntakeContext = {
-  catalog: CatalogItem[]
-  categories: CategoryOption[]
-  policy: {ok: true; policy: Policy} | {ok: false; problem: string}
-}
-
-async function loadContext(): Promise<IntakeContext> {
-  const [catalog, categories, rawPolicy] = await Promise.all([
-    fetchPublished<CatalogItem[]>(CATALOG_QUERY),
-    fetchPublished<CategoryOption[]>(CATEGORY_OPTIONS_QUERY),
-    fetchPublished<unknown>(POLICY_QUERY),
-  ])
-  return {catalog, categories, policy: parsePolicy(rawPolicy)}
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unknown error'
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function readFields(raw: Record<string, unknown>): AskFields {
   const text = (key: string) => (typeof raw[key] === 'string' ? (raw[key] as string) : '')
@@ -134,7 +103,7 @@ export async function matchCatalog(raw: unknown): Promise<CatalogMatchResult> {
 
   let context: IntakeContext
   try {
-    context = await loadContext()
+    context = await loadIntakeContext()
   } catch (error) {
     return {ok: false, message: `Couldn't load the catalog from Sanity: ${errorMessage(error)}`, decisionId: null}
   }
@@ -179,10 +148,8 @@ export async function matchCatalog(raw: unknown): Promise<CatalogMatchResult> {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 2. Submit, triage, gate
+// 2. Submit: validate, create the private draft, hand it to the lifecycle
 // ---------------------------------------------------------------------------------------------
-
-export type SubmitRoute = 'published' | 'review' | 'emergency'
 
 export type SubmitResult =
   | {
@@ -190,10 +157,6 @@ export type SubmitResult =
       needId: string
       /** The private status token. Only its SHA-256 is stored; this is the only copy. */
       statusToken: string
-      route: SubmitRoute
-      reasons: string[]
-      emergencyResources: string | null
-      decisionId: string | null
     }
   | {ok: false; message: string}
 
@@ -227,84 +190,44 @@ function readLines(raw: unknown, catalog: CatalogItem[]): {ok: true; lines: Line
   return {ok: true, lines}
 }
 
-function lineKey(): string {
-  return randomBytes(6).toString('hex')
+function checklistItems(lines: Line[]) {
+  return lines.map((line) => ({
+    _key: randomBytes(6).toString('hex'),
+    _type: 'needItem' as const,
+    supplyItem: {_type: 'reference' as const, _ref: line.supplyItemId},
+    quantity: line.quantity,
+    pledgedQty: 0,
+  }))
 }
 
-function isConflict(error: unknown): boolean {
-  return isRecord(error) && error.statusCode === 409
-}
-
-type TriageSummary = {
-  _type: 'triageSummary'
-  outcome: 'auto_published' | 'needs_review' | 'emergency' | 'error'
-  reasons: string[]
-  flags: Array<{_key: string; _type: 'triageFlag'; code: string; label: string; probability: number}>
-  minConfidence?: number
-  decision?: {_type: 'reference'; _ref: string; _weak: true}
-  decidedAt: string
-}
-
-function summary(
-  outcome: TriageSummary['outcome'],
-  reasons: string[],
-  verdict: TriageVerdict | null,
-  decisionId: string | null,
-): TriageSummary {
-  return {
-    _type: 'triageSummary',
-    outcome,
-    reasons,
-    flags: (verdict?.flags ?? [])
-      .filter((flag) => flag.fired)
-      .map((flag) => ({
-        _key: flag.code,
-        _type: 'triageFlag',
-        code: flag.code,
-        label: flag.label,
-        probability: flag.probability,
-      })),
-    ...(typeof verdict?.minConfidence === 'number' ? {minConfidence: verdict.minConfidence} : {}),
-    ...(decisionId ? {decision: {_type: 'reference', _ref: decisionId, _weak: true}} : {}),
-    decidedAt: new Date().toISOString(),
+/** Everything the requester controls, validated in code (a Server Action is a public endpoint). */
+async function readRequest(
+  input: Record<string, unknown>,
+): Promise<{ok: true; fields: AskFields; lines: Line[]} | {ok: false; message: string}> {
+  const fields = readFields(input)
+  const problem = askFieldProblem(fields)
+  if (problem) return {ok: false, message: problem.message}
+  let context: IntakeContext
+  try {
+    context = await loadIntakeContext()
+  } catch (error) {
+    return {ok: false, message: `Requests can't be submitted right now: ${errorMessage(error)}`}
   }
-}
-
-/** Jev's suggestions for the fields a verifier would otherwise fill in. */
-function suggestedFields(verdict: TriageVerdict | null, context: IntakeContext, requesterLanguage: string) {
-  const minConfidence = context.policy.ok ? context.policy.policy.thresholds.triageMinConfidence : 1
-  const category = verdict?.category
-    ? context.categories.find((c) => c.slug === verdict.category?.slug)
-    : undefined
-  const language =
-    verdict?.language && verdict.language.confidence >= minConfidence && verdict.language.code in LANGUAGE_LABELS
-      ? verdict.language.code
-      : requesterLanguage
-  return {
-    language,
-    ...(category ? {category: {_type: 'reference' as const, _ref: category._id}} : {}),
-    ...(verdict?.urgency ? {urgency: verdict.urgency.level} : {}),
-  }
+  const parsed = readLines(input.lines, context.catalog)
+  return parsed.ok ? {ok: true, fields, lines: parsed.lines} : parsed
 }
 
 export async function submitRequest(raw: unknown): Promise<SubmitResult> {
   const input = isRecord(raw) ? raw : {}
-  const fields = readFields(input)
-  const problem = askFieldProblem(fields)
-  if (problem) return {ok: false, message: problem.message}
+  const request = await readRequest(input)
+  if (!request.ok) return request
 
-  let context: IntakeContext
   let client: ReturnType<typeof getWriteClient>
   try {
     client = getWriteClient()
-    context = await loadContext()
   } catch (error) {
     return {ok: false, message: `Requests can't be submitted right now: ${errorMessage(error)}`}
   }
-
-  const parsedLines = readLines(input.lines, context.catalog)
-  if (!parsedLines.ok) return {ok: false, message: parsedLines.message}
-  const byId = new Map(context.catalog.map((item) => [item._id, item]))
 
   // Reuse the id from the catalog match (so its decision joins the trail) if the ticket is ours
   // and nothing exists under that id yet.
@@ -316,131 +239,88 @@ export async function submitRequest(raw: unknown): Promise<SubmitResult> {
     if (taken > 0) needId = null
   }
   needId ??= `need-${randomUUID()}`
-  const draftId = `drafts.${needId}`
 
   const statusToken = randomBytes(32).toString('base64url')
-  const submittedAt = new Date().toISOString()
-  const content = {
-    _type: 'need' as const,
-    title: fields.title,
-    story: fields.story,
-    language: fields.language,
-    displayName: fields.displayName,
-    city: fields.city,
-    country: fields.country,
-    items: parsedLines.lines.map((line) => ({
-      _key: lineKey(),
-      _type: 'needItem' as const,
-      supplyItem: {_type: 'reference' as const, _ref: line.supplyItemId},
-      quantity: line.quantity,
-      pledgedQty: 0,
-    })),
-    statusTokenHash: createHash('sha256').update(statusToken).digest('hex'),
-    submittedAt,
-    isDemo: false,
-  }
-
-  // The private draft. Nobody but the server, the requester (with the link) and verifiers sees it.
-  let draftRev: string
   try {
-    const created = await client.create(
-      {...content, _id: draftId, stage: 'triage'},
-      {tag: 'vouch.intake.draft', timeout: REQUEST_TIMEOUT_MS},
+    // The private draft: only the server, the requester (with the link) and verifiers can see it.
+    // Sync visibility, so the status page finds it by its link on the first look.
+    await client.create(
+      {
+        _id: `drafts.${needId}`,
+        _type: 'need',
+        ...request.fields,
+        items: checklistItems(request.lines),
+        stage: 'triage',
+        statusTokenHash: createHash('sha256').update(statusToken).digest('hex'),
+        submittedAt: new Date().toISOString(),
+        isDemo: false,
+      },
+      {visibility: 'sync', tag: 'vouch.intake.draft', timeout: REQUEST_TIMEOUT_MS},
     )
-    draftRev = created._rev
   } catch (error) {
     return {ok: false, message: `Sanity didn't accept the request, so nothing was saved: ${errorMessage(error)}`}
   }
 
-  const base = {needId, statusToken}
-  const toReview = async (
-    outcome: TriageSummary['outcome'],
-    reasons: string[],
-    verdict: TriageVerdict | null,
-    decisionId: string | null,
-  ): Promise<SubmitResult> => {
-    const emergency = outcome === 'emergency'
-    const emergencyResources = emergency && context.policy.ok ? context.policy.policy.emergencyResources : null
-    const shown = [...reasons]
-    try {
-      await client
-        .patch(draftId)
-        .set({
-          stage: 'review',
-          triage: summary(outcome, reasons, verdict, decisionId),
-          ...suggestedFields(verdict, context, fields.language),
-        })
-        .commit({visibility: 'sync', tag: 'vouch.intake.review', timeout: REQUEST_TIMEOUT_MS})
-    } catch (error) {
-      shown.push(
-        `Saving the triage result failed (${errorMessage(error)}). A volunteer will find the request in the intake list.`,
-      )
-    }
-    return {ok: true, ...base, route: emergency ? 'emergency' : 'review', reasons: shown, emergencyResources, decisionId}
-  }
+  // Jev triage, the gate and (maybe) publishing run in the lifecycle, after this response.
+  advanceLater(needId, 'start')
+  return {ok: true, needId, statusToken}
+}
 
-  if (!context.policy.ok) {
-    return toReview('error', [`Vouch's policy document is incomplete (${context.policy.problem}), so a volunteer will review this request.`], null, null)
-  }
-  const policy = context.policy.policy
+// ---------------------------------------------------------------------------------------------
+// 3. Resubmit after a verifier sent the request back
+// ---------------------------------------------------------------------------------------------
 
-  const checklist = parsedLines.lines.map((line) => {
-    const item = byId.get(line.supplyItemId)!
-    return `${line.quantity} × ${item.name} (${item.unit})`
-  })
-  const questions = buildTriageQuestions(policy, context.categories, LANGUAGE_LABELS)
-  const gate = (answers: Parameters<typeof gateTriage>[0]) =>
-    gateTriage(answers, policy, context.categories, LANGUAGE_LABELS)
-  const result = await askJev({
-    kind: 'triage',
-    subjectId: needId,
-    state: triageState({
-      title: fields.title,
-      story: fields.story,
-      city: fields.city,
-      country: fields.country,
-      checklist,
-    }),
-    questions,
-    decide: (answers) => triageDecisionOutcome(gate(answers)),
-  })
-  if (!result.ok) {
-    return toReview(
-      'error',
-      [`Jev couldn't check this request (${result.error}). A volunteer will review it instead; nothing was decided automatically.`],
-      null,
-      result.decisionId,
+export type ResubmitResult = {ok: true} | {ok: false; message: string}
+
+export async function resubmitRequest(token: unknown, raw: unknown): Promise<ResubmitResult> {
+  const hash = hashStatusToken(token)
+  if (!hash) return {ok: false, message: 'This status link is incomplete. Copy the whole link, including the part after #.'}
+  const request = await readRequest(isRecord(raw) ? raw : {})
+  if (!request.ok) return request
+
+  const client = getWriteClient()
+  const draft = await client
+    .fetch<{_id: string; _rev: string; stage: string} | null>(
+      `*[_type == "need" && statusTokenHash == $hash && _id in path("drafts.**")][0]{_id, _rev, stage}`,
+      {hash},
+      {tag: 'vouch.intake.resubmit', timeout: REQUEST_TIMEOUT_MS},
     )
-  }
-  const verdict = gate(result.answers)
+    .catch(() => null)
+  if (!draft) return {ok: false, message: 'No private request matches this link.'}
+  if (draft.stage !== 'sent_back') return {ok: false, message: "This request isn't waiting for your changes right now."}
 
-  if (verdict.route !== 'publish') {
-    return toReview(verdict.route === 'emergency' ? 'emergency' : 'needs_review', verdict.reasons, verdict, result.decisionId)
+  const needId = draft._id.replace(/^drafts\./, '')
+  const instance = await readLifecycle(needId).catch(() => null)
+  if (!instance || instance.currentStage !== 'sent_back') {
+    return {ok: false, message: "Vouch's lifecycle isn't waiting for your changes right now, so nothing was changed."}
   }
 
-  // Passed the gate: publish in ONE transaction, guarded by the draft's revision, so exactly the
-  // text Jev checked goes live. `create` fails if a published document already exists.
-  const publishedAt = new Date().toISOString()
+  // The edit and the new stage in one revision-guarded patch. The previous verdict is removed so the
+  // page never shows old reasons while Jev checks the new words.
   try {
     await client
-      .transaction()
-      .patch(draftId, (patch) => patch.ifRevisionId(draftRev).set({stage: 'open'}))
-      .create({
-        ...content,
-        ...suggestedFields(verdict, context, fields.language),
-        _id: needId,
-        stage: 'open',
-        publishedAt,
-        triage: summary('auto_published', [], verdict, result.decisionId),
-      })
-      .delete(draftId)
-      .commit({visibility: 'sync', tag: 'vouch.intake.publish', timeout: REQUEST_TIMEOUT_MS})
+      .patch(draft._id)
+      .ifRevisionId(draft._rev)
+      .set({...request.fields, items: checklistItems(request.lines), stage: 'triage'})
+      .unset(['triage', 'category', 'urgency'])
+      .commit({visibility: 'sync', tag: 'vouch.intake.resubmit', timeout: REQUEST_TIMEOUT_MS})
   } catch (error) {
-    const why = isConflict(error)
-      ? 'The request changed while Jev was checking it'
-      : `Publishing failed (${errorMessage(error)})`
-    return toReview('error', [`${why}, so a volunteer will review it instead.`], verdict, result.decisionId)
+    return {
+      ok: false,
+      message: isConflict(error)
+        ? 'Your request changed in the meantime. Reload the page and try again.'
+        : `Sanity didn't accept the changes: ${errorMessage(error)}`,
+    }
   }
 
-  return {ok: true, ...base, route: 'published', reasons: [], emergencyResources: null, decisionId: result.decisionId}
+  try {
+    await fireLifecycle(needId, ACTIONS.sentBack.activity, ACTIONS.sentBack.resubmit)
+  } catch (error) {
+    // Put the stage back so the page and the desk tell the truth; the edited words stay saved.
+    await client.patch(draft._id).set({stage: 'sent_back'}).commit({visibility: 'sync'}).catch(() => {})
+    return {ok: false, message: `Your changes are saved, but the check couldn't start (${errorMessage(error)}). Please try again.`}
+  }
+
+  advanceLater(needId, 'drain')
+  return {ok: true}
 }

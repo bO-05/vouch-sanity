@@ -66,7 +66,7 @@ Story hook for the post: "A mutual-aid app whose AI can't write a single sentenc
 - `handoff/RESEARCH.md`: challenge rules, Sanity (Workflows, App SDK, Functions, CLI, datasets) and TypeSafe/Jev API facts with links. Read the relevant section before touching that area; prefer live docs if something looks outdated.
 - `handoff/PROTOTYPE_LESSONS.md`: what the prototype got wrong, and what's worth porting (with paths in the old repo).
 - `handoff/BUILD_LOG.md`: dated journal that feeds the DEV post's "My Build Process" section.
-- App layout: `web/` (Next.js 16 App Router), `studio/` (Sanity Studio v6: `schemaTypes/`, `structure.ts`, `scripts/seed.ts`), later `workflows/` (workflow definitions + `sanity.workflow.ts`) and optionally `desk/` (App SDK). npm workspaces at the root.
+- App layout: `web/` (Next.js 16 App Router; the Workflows definition lives in `web/src/workflows/`, deployed by `web/scripts/workflow-deploy.ts`, with no `sanity.workflow.ts`), `studio/` (Sanity Studio v6: `schemaTypes/`, `structure.ts`, `scripts/seed.ts`), and optionally `desk/` (App SDK). npm workspaces at the root.
 - Web internals:
   - `web/src/lib/jev.ts`: the only place Jev is called. It records every call as a `decision`.
   - `web/src/lib/pledges.ts`: the only place pledges are written. Code validation, then one `ifRevisionId`-guarded transaction, retried on 409.
@@ -75,11 +75,23 @@ Story hook for the post: "A mutual-aid app whose AI can't write a single sentenc
   - `web/src/lib/sanity/live.ts`: `SanityLive` plus `fetchPublished`, the uncached reads for live pages.
   - `web/src/lib/queries.ts`: GROQ.
   - `web/src/app/requests/[id]/`: the request page, the pledge form and the pledge Server Action.
-  - `web/src/lib/intake.ts`: the only place requests are created and published. Catalog match, submit, triage call, gate, then the revision-guarded publish transaction or `review`.
+  - `web/src/lib/intake.ts`: the only place requests are created or edited by requesters: catalog match, submit (creates the private draft, then `advanceLater`), and resubmit after a send-back. It never publishes.
+  - `web/src/workflows/need-lifecycle.ts`: the Sanity Workflows definition (pure; `WORKFLOW_TAG`, `lifecycleInstanceId`, effect and action names). Changing it and redeploying creates a new version; running instances stay on theirs.
+  - `web/src/lib/lifecycle/`: the engine runtime.
+    - `engine.ts`: engine singleton; start, drain, fire, read, `viewLifecycle`.
+    - `effects.ts`: the handler registry.
+    - `triage-step.ts`: the `jev-triage` effect, Jev plus the gate, writing to the draft.
+    - `publish-step.ts`: `publishDraft`, the only place a request is published (revision-guarded transaction), and `recordReview`.
+    - `advance.ts`: `after()` background start or drain.
+  - `web/src/lib/desk.ts`: the verifier desk. Inbox read (drafts plus instances) and decide / retry / start, as engine actions.
+  - `web/src/lib/verifier.ts`: passcode check and the HMAC-signed httpOnly session cookie (`readVerifier`, called by every desk action).
+  - `web/src/lib/trail.ts`: the server-side half of a published request's trail. Reviews live under the private `review.*` path; send-back and reject notes are hidden.
+  - `web/src/lib/intake-context.ts`: catalog, categories and policy loader shared by intake and triage.
   - `web/src/lib/triage.ts` and `web/src/lib/catalog-match.ts`: pure modules (no runtime imports) with the question builders and the code gates. They're shared with `web/scripts/`.
   - `web/src/lib/intake-rules.ts`: form limits and the contact check, shared by the browser and the server.
   - `web/src/lib/status.ts`: the private status lookup (SHA-256 of the `/status#token`).
-  - `web/src/app/ask/` (the form, dictation hook, actions) and `web/src/app/status/` (the private status page).
+  - `web/src/app/ask/` (the form, dictation hook, actions), `web/src/app/status/` (the private status page: `StatusTracker` with live lifecycle stages, resubmit form) and `web/src/app/desk/` (the verifier desk).
+  - Shared UI in `web/src/components/`: `checklist-editor.tsx`, `form.tsx`, `lifecycle-steps.tsx`, `triage-notes.tsx`.
   - `web/scripts/calibrate-triage.ts` + `calibration-pleas.ts`: threshold calibration on synthetic pleas. Results go to `handoff/calibration/`.
 
 ## Commands
@@ -105,6 +117,11 @@ Run from the repo root (npm workspaces `web` and `studio`) unless noted.
 | Call a Server Action directly | See RESEARCH §2.7 | For adversarial tests (over-pledge, drafts, races). Action ids differ per build |
 | Pledge invariant | Anonymous GROQ: `*[_type=='need']{_id, 'bad': items[coalesce(pledgedQty,0) != coalesce(math::sum(*[_type=='pledge' && status!='cancelled' && need._ref==^.^._id && itemKey==^._key].quantity),0)]._key}[count(bad) > 0]` | Must return `[]` |
 | Jev health check | `POST /api/jev/health` with header `x-verifier-passcode` | One real Jev call, recorded as a `decision` doc |
+| Deploy the lifecycle | `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file=.env.local scripts/workflow-deploy.ts` (from `web/`) | `engine.deployDefinitions`, engine 0.35.0, tag `prod`. Idempotent. Don't use the built-in `sanity workflows deploy` (it's 0.32) |
+| Adopt older requests | `... scripts/workflow-migrate.ts [--dry-run]` (from `web/`) | Starts instances for requests that have none: published → `open`, review drafts → `review`, intake drafts → triage (queued; the desk's Retry runs it) |
+| Workflow probes | `... scripts/workflow-probe.ts`, `workflow-probe-requests.ts`, `probe-payment-flag.ts` (from `web/`) | Stub-handler path test and request counts on tag `dev` (they clean up after themselves), and the payment-question comparison |
+| Inspect instances | `... documents query "*[_type == 'sanity.workflow.instance']{_id, currentStage}" --api-version v2021-06-07` (from `studio/`) | Workflow docs have dotted ids (private) |
+| Verifier desk | https://vouch-sanity.vercel.app/desk | Passcode from `VERIFIER_PASSCODE`. In browser tests, read it into a PowerShell variable. Never type it into a command |
 | Status | `GET /api/status` | Sanity counts plus which server secrets are set (booleans only) |
 
 ## Environment notes
@@ -113,6 +130,8 @@ Run from the repo root (npm workspaces `web` and `studio`) unless noted.
   - PS 5.1 strips embedded double quotes from native-command arguments: in GROQ passed on the command line, use single-quoted strings (`*[_type=='need']`).
   - Don't combine `$ErrorActionPreference = 'Stop'` with native commands that write to stderr (npm warnings become terminating errors). Wrap npm in `cmd /c "... > file 2>&1"` when you need its output.
   - `Start-Process` for long-lived servers makes the shell tool report a `ChildProcess.kill` error, but the process keeps running. Check the port afterwards and stop it by PID.
+- **Regions:** the Content Lake shard is in GCP europe-west1, so the Vercel functions run in **cdg1** (project setting `resourceConfig.functionDefaultRegions`; `vercel.json` regions are ignored). Workflow engine calls from the laptop are about 10× slower than from Vercel.
+- PowerShell 5.1 strips embedded double quotes in `node -e "…"`. Put one-off Sanity patches in a temporary script under `web/scripts/` (so module resolution works) and delete it afterwards.
 - Node 22.22 locally (OK for App SDK, which needs 22.12+). Module loading is slow here (likely antivirus scanning `node_modules`), so give builds and lint long timeouts.
 - npm lockfile health: after any dependency change, check that `package-lock.json` entries have `resolved` and `integrity` and that the Linux binaries (`lightningcss-linux-x64-gnu`, `@next/swc-linux-x64-gnu`) are present. On Day 1 a killed install left a degraded lockfile that broke the Vercel build. Fix: move `node_modules` aside, run `npm install --package-lock-only`, move it back, run `npm install`.
 - `@sanity/icons` v5: import icons from subpaths (`@sanity/icons/Inbox`). Root named imports type-check as `never` but break the bundle. The studio ESLint config blocks them.

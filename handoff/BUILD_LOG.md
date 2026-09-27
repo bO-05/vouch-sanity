@@ -302,3 +302,94 @@ Wrap-ups now happen automatically after each verified milestone, or when I say s
 - **The HMAC ticket key is derived from the Sanity write token**, so no new secret was needed.
 
 **Next:** Day 4: the verifier desk (approve / send back / reject) and the lifecycle, with a timebox for the Sanity Workflows engine. Plus the user's speech-input test in Chrome.
+
+## Day 4: Sun, Sep 27. The lifecycle becomes data: Sanity Workflows, the verifier desk, and a miss caught in production
+
+**Goal:** Day 4 in PLAN (planned for Sep 30): a 1-day timebox for the Sanity Workflows engine, the verifier desk (approve / send back / reject), the send-back loop on the requester's private page, and the trail. Same prompt as every day: "go".
+
+**What shipped:**
+- **The whole request lifecycle is a Sanity Workflows definition** (`web/src/workflows/need-lifecycle.ts`, deployed as `prod.need-lifecycle.v1`): triage → (review) → publishing → open → proof_check → (proof_review) → certifying → fulfilled, plus sent_back and rejected. The proof stages are already declared for Day 5.
+  - **Jev and the verifier go through the same transitions.** Both a passed triage and a verifier's approval enter `publishing`, whose effect publishes the draft. It's the challenge's own description of Workflows: "an agent can move a draft forward and a person can approve it through the same transitions".
+  - **Effects** (`web/src/lib/lifecycle/`):
+    - `jev-triage`: the Day 3 call and gate, now inside an effect.
+    - `publish-need`: one transaction guarded by the exact revision that was checked, or seen by the verifier.
+    - `record-send-back` / `record-rejection`: each writes the review and the draft's new stage in one transaction.
+  - An approval is recorded **in the publish transaction**, so "approved" and "live" can't disagree.
+  - Every instance is private (dotted id `prod.wf-instance.<request>`). Its id is derived from the request id, so there's no lookup and starting is idempotent.
+- **Verifier desk** (`/desk`):
+  - Sign-in: the passcode plus a display name, exchanged for an HMAC-signed, httpOnly, SameSite=strict cookie that every action re-checks.
+  - The inbox shows the requester's words, the checklist, the code-written reasons, Jev's typed answers, earlier reviews and the live lifecycle.
+  - Actions: Approve and publish, Send back with a question, or Reject. Stuck automatic steps get a "Retry automatic steps" button, and drafts without a lifecycle get "Start the lifecycle".
+- **Send-back loop:** the requester sees the verifier's note on `/status#token`, edits the words, checklist and details, and resubmits. The lifecycle checks the new version from scratch.
+- **Live progress:** after submitting, the requester gets their private link immediately and watches the real stages, read from the instance document ("Jev checks it · 5.1 s → Publishing · 4.0 s → Verified and live").
+- **Trail on the public page:** Jev decisions, human reviews, and the lifecycle stages with timings.
+  - Reviews are stored under a private path (`review.*`), because they talk about requests that may still be drafts. The server shows them once a request is published.
+  - Send-back and reject notes stay private forever; approval notes are public.
+- **Adoption instead of rewriting history.** The 17 requests from Days 1-3 got instances through an explicit `adoptAt` start field: adopted at `open`, or at `review`, with no Jev effect queued. Their trail says "Adopted into the lifecycle (this request existed before it; no check ran here)" instead of pretending Jev ran.
+  - The two never-checked seeded drafts were started normally, and the desk's Retry ran their real triage.
+
+**The Workflows timebox (decided about 1.7 h in: adopt the engine):**
+1. **Versions:** `sanity workflows` is built into `@sanity/cli` 8.13, but it bundles engine and CLI **0.32.0**; npm latest is **0.35.0**, and the quick start wants ≥ 0.33 with matching versions.
+   - `@sanity/workflow-cli@0.35.0` peers on `@sanity/workflow-blueprint`, which peers on TypeScript 6 or 7. Result: `ERESOLVE` against our TS 5.9.
+   - Decision: pin `@sanity/workflow-engine@0.35.0` in `web` and deploy with `engine.deployDefinitions()` (`web/scripts/workflow-deploy.ts`), the documented programmatic equivalent, on the same version as the runtime.
+2. **First define-time error:** `duplicate effect name (registry key — unique per definition) "record-review"`. An effect's name is both its declaration and its handler key, so every decision gets its own effect name, all sharing one handler.
+3. **Functional probe** (stub handlers, a throwaway `dev` tag, the real dataset): every path worked the first time.
+   - A clean request went triage → publishing → open in ONE `drainEffects`.
+   - Approve while in `sent_back` failed with `ContractViolationError: Activity "verify" not found in current stage "sent_back"`.
+   - A second decision failed with `ActionDisabledError … action filter returned false`.
+   - Engine docs (`sanity.workflow.definition` / `sanity.workflow.instance`) have dotted ids, so anonymous queries see 0 of them.
+4. **Latency, the real finding:** each engine verb made **13-31 sequential HTTP requests**, mostly re-reading the instance document.
+   - From the laptop: start 6.5 s, drain 9-22 s.
+   - From a Vercel preview in iad1: start 4.3 s, drain 4.6 s, fireAction 2.3 s, approve → open 9.3 s. That projected about 14 s for a clean submission; Day 3 took 1.4 s.
+5. **Why:** the response header `X-Sanity-Shard: gcp-eu-w1-prod-40034` says the project's Content Lake is in **europe-west1 (Belgium)**, with `Server-Timing: api;dur=4`. Our functions ran in Washington.
+   - `web/vercel.json` `regions` was silently ignored for CLI deploys from the repo root.
+   - The project setting `resourceConfig.functionDefaultRegions` (a REST PATCH) worked, and functions moved to **cdg1 (Paris)**.
+   - Results: a plain query went from 118 ms to 31-47 ms, and fireAction from 2.3 s to 0.95 s.
+6. **The floor:** the engine hard-codes `SYNC_COMMIT = {visibility: "sync"}`, and a sync commit costs about 0.8 s on this dataset even from Paris. I didn't override an early-access engine's consistency guarantee. Instead:
+   - Fewer commits: an approval is one effect, not two.
+   - Our own writes use `visibility: 'async'`.
+   - The intake drain runs in Next's `after()` while the requester watches the real stages.
+   - It's still a trade: a clean request now goes live in about 9 s instead of 1.4 s, and the requester sees why.
+
+**Verified by** (production https://vouch-sanity.vercel.app, deploy `dpl_BbJ12bns8WqPk5FKXuDciiJKC3Ts`, functions in cdg1: `x-vercel-id: sin1::cdg1::…`):
+- **Approve** "School notebooks" (Jev was down on Day 3):
+  - The click was at 09:02:48.34 and fireAction committed at +1.2 s.
+  - **Published at +4.2 s**, with the approval review written in the same transaction (same timestamp).
+  - An observer browser already on the feed showed the new card without a reload (marker intact, 13 → 14 cards).
+  - The public trail shows "Volunteer Bram: Approved" with the note, plus the lifecycle.
+- **Send back → edit → resubmit:** a PayPal plea was flagged, sent back ("Vouch can only pass on goods, not money…"), and the requester read the note on their private page and edited the words.
+  - Timeline: triage 5.1 s → review → sent back → triage 5.1 s → publishing 4.0 s → verified and live.
+  - The public trail shows the catalog match, both triage decisions and "Sent back", without the private note.
+- **Reject:** the review was recorded at +2.0 s and the instance completed at `rejected` at +3.0 s. The draft stays private, and the requester's page says "Rejected", shows the note, and ends the lifecycle at "Rejected (stays private)".
+- **Retry** on a never-checked seeded draft ran a real Jev triage from Paris in 274 ms and routed it to a person.
+- **Refused:**
+  - Direct Server Action POSTs to decide, retry and start, both without a cookie and with a forged one: "Sign in to the verifier desk first".
+  - A cross-site Origin: HTTP 500 from Next's CSRF check.
+  - A wrong passcode sets no cookie.
+  - Resubmitting with a wrong or malformed token is refused.
+- **Anonymous GROQ:** 0 drafts, 0 reviews and 0 workflow docs visible. The pledge invariant query still returns `[]`. `npm run check` passes.
+
+**What didn't (and the exact errors):**
+1. **The production miss.** "Could someone send me money by PayPal so I can buy her a warm coat and gloves?" scored `payment_redirect` **p = 0.30** and **published automatically**.
+   - The Day 3 question listed gift cards, crypto, wire transfers, mobile money and cash, but never "money" itself, and the 33 calibration pleas had no payment app.
+   - A comparison probe on 8 synthetic pleas (`web/scripts/probe-payment-flag.ts`), old wording vs new:
+     - PayPal: 0.21 → 0.99.
+     - Venmo: 0.72 → 0.99.
+     - Pleas that only mention money: 0.02-0.04 → 0.02-0.03.
+   - The new wording is policy content: I patched it in Sanity, with no redeploy, and updated the seed default and migration.
+   - Calibration with 4 new money pleas: **37/37**.
+   - Production then flagged the same PayPal plea at p = 0.98. The published test request was removed; its decision documents stay as evidence.
+2. `vercel.json` `regions` had no effect (the functions stayed in iad1, per `VERCEL_REGION`).
+3. `@sanity/client` reserves `tag` as a query-parameter name ("Type 'string' is not assignable to type 'never'"), so the migration uses `$workflowTag`.
+4. `getDocument` takes no `timeout` option. React's purity lint flagged `Date.now()` in a server component, so that moved into the data loader.
+5. The desk sign-in "failed" the first time only in my test: React 19 resets a form after its action runs, so my second click submitted an empty name.
+6. PowerShell 5.1 strips embedded double quotes from `node -e` code, so one-off patches go in a temporary script file.
+
+**Decisions:**
+- **Adopt the engine** (above). The fallback `stage` field stays as a mirror on the document, written by the effects, so feed queries and the public dataset keep working.
+- **Reviews are private** (`review.*`); only the server shows them, and only for published requests.
+- **Adoption, not fake history,** for pre-lifecycle requests.
+- **Test requests became labeled demo data again** (`isDemo`), as on Day 3.
+
+**Next:** Day 5, the proof flow. Receipt upload, then in-browser OCR, then editable lines, then `submit-proof` on the instance. Then the `jev-proof` and `issue-certificate` handlers (the stages are already deployed), and the certificate page. Also Day 7's reset script must nuke and re-adopt the workflow instances.
+

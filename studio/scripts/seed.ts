@@ -183,7 +183,7 @@ const POLICY = {
       code: 'payment_redirect',
       label: 'Asks for money instead of goods',
       question:
-        'Does `request` ask donors to send gift cards, cryptocurrency, wire transfers, mobile money or cash to a person or an account?',
+        'Does `request` ask donors for money in any form instead of goods, such as cash, a bank or wire transfer, PayPal, Venmo, Cash App, Zelle, mobile money, gift cards or cryptocurrency?',
       routesTo: 'review',
       enabled: true,
     },
@@ -467,6 +467,20 @@ const DAY1_FLAG_QUESTIONS: Record<string, string> = {
     'Is this text something other than a request for material goods or supplies for a person or household, for example spam, an advertisement, a test message or a request for services?',
 }
 
+/**
+ * Wordings replaced later. Day 4: the Day 3 payment question scored "send me money by PayPal" at
+ * p = 0.21-0.30 (it listed kinds of payment but not money itself), so a money request auto-published.
+ */
+const SUPERSEDED_FLAG_QUESTIONS: Record<string, string[]> = {
+  payment_redirect: [
+    'Does `request` ask donors to send gift cards, cryptocurrency, wire transfers, mobile money or cash to a person or an account?',
+  ],
+}
+
+function isOldWording(code: string, question: string | undefined): boolean {
+  return question === DAY1_FLAG_QUESTIONS[code] || (SUPERSEDED_FLAG_QUESTIONS[code] ?? []).includes(question ?? '')
+}
+
 /** Day 1 starting guesses. A threshold still at this value was never tuned in the Studio. */
 const DAY1_THRESHOLDS: Record<string, number> = {
   triageMinConfidence: 0.7,
@@ -500,7 +514,7 @@ async function migratePolicy(tx: ReturnType<typeof client.transaction>): Promise
   )
   const reworded = flags.filter((flag) => {
     const seeded = seededFlags.find((f) => f.code === flag.code)
-    return seeded && flag.code && flag.question === DAY1_FLAG_QUESTIONS[flag.code] && seeded.question !== flag.question
+    return seeded && flag.code && isOldWording(flag.code, flag.question) && seeded.question !== flag.question
   })
   const flagThresholds = flags.filter((flag) => {
     const seeded = seededFlags.find((f) => f.code === flag.code)

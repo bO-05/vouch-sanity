@@ -1,13 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import {useCallback, useId, useMemo, useState, type ReactNode} from 'react'
-import {EmergencyResources, ReasonList} from '@/components/triage-notes'
+import {useCallback, useId, useState, type ReactNode} from 'react'
+import {ChecklistEditor} from '@/components/checklist-editor'
+import {Field, inputClass, primaryButton, secondaryButton} from '@/components/form'
 import type {CatalogItem} from '@/lib/catalog-match'
 import type {CatalogMatchResult, SubmitResult} from '@/lib/intake'
 import {ASK_LIMITS, askFieldProblem, tidyFields, type AskFields, type FieldProblem} from '@/lib/intake-rules'
 import {saveRequest, statusPath} from '@/lib/saved-requests'
 import {LANGUAGE_LABELS} from '@/lib/vocab'
+import {StatusTracker} from '../status/status-view'
 import {matchCatalogAction, submitRequestAction} from './actions'
 import {useDictation} from './use-dictation'
 
@@ -24,13 +26,6 @@ type Line = {
 type MatchMeta = Extract<CatalogMatchResult, {ok: true}>
 type Submitted = Extract<SubmitResult, {ok: true}>
 
-const input =
-  'w-full rounded-xl border border-border bg-surface-2 px-3 py-2 text-sm placeholder:text-muted focus:border-amber/60 focus:outline-none'
-const primaryButton =
-  'rounded-xl bg-amber px-4 py-2.5 text-sm font-semibold text-background transition-opacity disabled:opacity-60'
-const secondaryButton =
-  'rounded-xl border border-border px-4 py-2.5 text-sm font-medium transition-colors hover:border-amber/60 disabled:opacity-60'
-
 function Section({title, step, children}: {title: string; step: number; children: ReactNode}) {
   const id = `step-${step}`
   return (
@@ -40,36 +35,6 @@ function Section({title, step, children}: {title: string; step: number; children
       </h2>
       {children}
     </section>
-  )
-}
-
-function Field({
-  id,
-  label,
-  hint,
-  error,
-  children,
-}: {
-  id: string
-  label: string
-  hint?: ReactNode
-  error?: string | null
-  children: ReactNode
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
-      {children}
-      {error ? (
-        <p id={`${id}-error`} className="text-xs text-danger">
-          {error}
-        </p>
-      ) : hint ? (
-        <p className="text-xs text-muted">{hint}</p>
-      ) : null}
-    </div>
   )
 }
 
@@ -94,9 +59,7 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState<Submitted | null>(null)
   const [savedOnDevice, setSavedOnDevice] = useState(false)
-  const [addChoice, setAddChoice] = useState('')
 
-  const byId = useMemo(() => new Map(catalog.map((item) => [item._id, item])), [catalog])
   const set = (name: keyof AskFields) => (value: string) => {
     setFields((current) => ({...current, [name]: value}))
     if (problem?.field === name) setProblem(null)
@@ -192,13 +155,9 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
     }
   }
 
-  if (submitted) return <SubmittedPanel result={submitted} title={tidyFields(fields).title} savedOnDevice={savedOnDevice} />
-
-  const available = catalog.filter((item) => !lines.some((line) => line.supplyItemId === item._id))
-  const groups = categoryOrder
-    .map((category) => ({category, items: available.filter((item) => item.category === category)}))
-    .filter((group) => group.items.length > 0)
-  const selectedAdd = available.find((item) => item._id === addChoice) ?? null
+  if (submitted) {
+    return <SubmittedPanel result={submitted} savedOnDevice={savedOnDevice} catalog={catalog} categoryOrder={categoryOrder} />
+  }
 
   return (
     <form
@@ -215,7 +174,7 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
             id={`${id}-language`}
             value={fields.language}
             onChange={(event) => set('language')(event.target.value)}
-            className={`${input} sm:max-w-xs`}
+            className={`${inputClass} sm:max-w-xs`}
           >
             {Object.entries(LANGUAGE_LABELS).map(([code, label]) => (
               <option key={code} value={code}>
@@ -225,19 +184,14 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
           </select>
         </Field>
 
-        <Field
-          id={`${id}-title`}
-          label="A short title"
-          hint="For example: Groceries until my next paycheck"
-          error={errorFor('title')}
-        >
+        <Field id={`${id}-title`} label="A short title" hint="For example: Groceries until my next paycheck" error={errorFor('title')}>
           <input
             id={`${id}-title`}
             value={fields.title}
             onChange={(event) => set('title')(event.target.value)}
             maxLength={ASK_LIMITS.title.max}
             aria-invalid={Boolean(errorFor('title'))}
-            className={input}
+            className={inputClass}
           />
         </Field>
 
@@ -260,7 +214,7 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
             maxLength={ASK_LIMITS.story.max}
             lang={fields.language === 'other' ? undefined : fields.language}
             aria-invalid={Boolean(errorFor('story'))}
-            className={`${input} leading-relaxed`}
+            className={`${inputClass} leading-relaxed`}
           />
           <div className="flex flex-wrap items-center gap-3">
             {dictation.supported ? (
@@ -284,7 +238,7 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
                   : `Listening in ${LANGUAGE_LABELS[fields.language] ?? 'your language'}… check the text before you submit.`
                 : dictation.supported
                   ? "Voice input uses your browser's speech recognition (in Chrome, the audio goes to Google to be transcribed)."
-                  : "This browser has no speech recognition, so please type (Chrome, Edge and Safari support dictation)."}
+                  : 'This browser has no speech recognition, so please type (Chrome, Edge and Safari support dictation).'}
             </p>
           </div>
         </Field>
@@ -298,7 +252,7 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
               maxLength={ASK_LIMITS.displayName.max}
               autoComplete="nickname"
               aria-invalid={Boolean(errorFor('displayName'))}
-              className={input}
+              className={inputClass}
             />
           </Field>
           <Field id={`${id}-city`} label="City" error={errorFor('city')}>
@@ -309,7 +263,7 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
               maxLength={ASK_LIMITS.city.max}
               autoComplete="address-level2"
               aria-invalid={Boolean(errorFor('city'))}
-              className={input}
+              className={inputClass}
             />
           </Field>
           <Field id={`${id}-country`} label="Country" error={errorFor('country')}>
@@ -320,7 +274,7 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
               maxLength={ASK_LIMITS.country.max}
               autoComplete="country-name"
               aria-invalid={Boolean(errorFor('country'))}
-              className={input}
+              className={inputClass}
             />
           </Field>
         </div>
@@ -361,125 +315,40 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
             <p className="text-sm text-muted">
               {match ? "Jev didn't match anything in the catalog to your words. " : ''}Add items from the catalog below.
             </p>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {lines.map((line) => {
-                const item = byId.get(line.supplyItemId)
-                if (!item) return null
-                return (
-                  <li
-                    key={line.supplyItemId}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium">
-                        {item.name} <span className="text-sm font-normal text-muted">({item.unit})</span>
-                      </p>
-                      <p className="text-xs text-muted">
-                        {line.source === 'jev' && typeof line.probability === 'number'
-                          ? `Matched by Jev from your words (p = ${line.probability.toFixed(2)})`
-                          : 'Added by you'}
-                        {line.fromWords
-                          ? line.fromWords.capped
-                            ? ` · you wrote ${line.fromWords.value}; one household can ask for up to ${item.maxPerHousehold}`
-                            : ` · quantity ${line.fromWords.value} from your words`
-                          : ''}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="sr-only" htmlFor={`${id}-qty-${line.supplyItemId}`}>
-                        How many {item.name}
-                      </label>
-                      <select
-                        id={`${id}-qty-${line.supplyItemId}`}
-                        value={line.quantity}
-                        onChange={(event) =>
-                          setLines((current) =>
-                            current.map((l) =>
-                              l.supplyItemId === line.supplyItemId ? {...l, quantity: Number(event.target.value)} : l,
-                            ),
-                          )
-                        }
-                        className="rounded-xl border border-border bg-surface-2 px-2 py-1.5 text-sm"
-                      >
-                        {Array.from({length: item.maxPerHousehold}, (_, index) => index + 1).map((count) => (
-                          <option key={count} value={count}>
-                            {count}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => setLines((current) => current.filter((l) => l.supplyItemId !== line.supplyItemId))}
-                        className="rounded-lg px-2 py-1 text-sm text-muted hover:text-danger"
-                        aria-label={`Remove ${item.name}`}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-
-          {lines.length < MAX_LINES ? (
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor={`${id}-add`} className="text-sm font-medium">
-                Add an item from the catalog
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <select
-                  id={`${id}-add`}
-                  value={selectedAdd?._id ?? ''}
-                  onChange={(event) => setAddChoice(event.target.value)}
-                  className={`${input} min-w-0 flex-1`}
-                >
-                  <option value="">Choose an item…</option>
-                  {groups.map((group) => (
-                    <optgroup key={group.category} label={group.category}>
-                      {group.items.map((item) => (
-                        <option key={item._id} value={item._id}>
-                          {item.name} ({item.unit})
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!selectedAdd}
-                  onClick={() => {
-                    if (!selectedAdd) return
-                    setLines((current) => [...current, {supplyItemId: selectedAdd._id, quantity: 1, source: 'you'}])
-                    setAddChoice('')
-                  }}
-                  className={secondaryButton}
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-muted">A checklist can have up to {MAX_LINES} items.</p>
-          )}
+          ) : null}
+          <ChecklistEditor
+            id={id}
+            catalog={catalog}
+            categoryOrder={categoryOrder}
+            lines={lines}
+            onChange={setLines}
+            newLine={(supplyItemId): Line => ({supplyItemId, quantity: 1, source: 'you'})}
+            describe={(line, item) =>
+              (line.source === 'jev' && typeof line.probability === 'number'
+                ? `Matched by Jev from your words (p = ${line.probability.toFixed(2)})`
+                : 'Added by you') +
+              (line.fromWords
+                ? line.fromWords.capped
+                  ? ` · you wrote ${line.fromWords.value}; one household can ask for up to ${item.maxPerHousehold}`
+                  : ` · quantity ${line.fromWords.value} from your words`
+                : '')
+            }
+          />
         </Section>
       ) : null}
 
       {checklistOpen ? (
         <div className="flex flex-col gap-3">
           <button type="submit" disabled={busy !== null} className={`${primaryButton} sm:self-start`}>
-            {busy === 'submit' ? 'Jev is checking your request…' : 'Submit for verification'}
+            {busy === 'submit' ? 'Saving your request…' : 'Submit for verification'}
           </button>
           <p className="text-xs text-muted">
-            Jev answers a few typed questions about your request (kind of help, urgency, language, and yes/no checks
-            from Vouch&apos;s policy). If nothing needs a person, it goes live right away. Otherwise it stays private until
-            a volunteer verifier looks at it.
+            Your request is saved as a private draft, then Jev answers a few typed questions about it (kind of help,
+            urgency, language, and yes/no checks from Vouch&apos;s policy). If nothing needs a person, it goes live on its
+            own. Otherwise it stays private until a volunteer verifier looks at it.
           </p>
           <div aria-live="assertive">
-            {submitError ? (
-              <p className="rounded-xl border border-danger/40 px-3 py-2 text-sm text-danger">{submitError}</p>
-            ) : null}
+            {submitError ? <p className="rounded-xl border border-danger/40 px-3 py-2 text-sm text-danger">{submitError}</p> : null}
           </div>
         </div>
       ) : null}
@@ -487,43 +356,24 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
   )
 }
 
-function SubmittedPanel({result, title, savedOnDevice}: {result: Submitted; title: string; savedOnDevice: boolean}) {
+function SubmittedPanel({
+  result,
+  savedOnDevice,
+  catalog,
+  categoryOrder,
+}: {
+  result: Submitted
+  savedOnDevice: boolean
+  catalog: CatalogItem[]
+  categoryOrder: string[]
+}) {
   const [copied, setCopied] = useState(false)
   const link = `${window.location.origin}${statusPath(result.statusToken)}`
 
   return (
     <div className="flex flex-col gap-6">
-      {result.route === 'emergency' && result.emergencyResources ? (
-        <EmergencyResources text={result.emergencyResources} />
-      ) : null}
-
-      <section className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 sm:p-6" aria-live="polite">
-        {result.route === 'published' ? (
-          <>
-            <p className="font-mono text-xs uppercase tracking-[0.2em] text-amber">Verified and live</p>
-            <h2 className="text-2xl font-semibold">“{title}” is published</h2>
-            <p className="text-muted">
-              Jev&apos;s answers passed every check in Vouch&apos;s policy, so your request went live automatically. Neighbors
-              can pledge items from your checklist now.
-            </p>
-            <Link href={`/requests/${result.needId}`} className={`${primaryButton} self-start`}>
-              See your request
-            </Link>
-          </>
-        ) : (
-          <>
-            <p className="font-mono text-xs uppercase tracking-[0.2em] text-amber">Saved privately</p>
-            <h2 className="text-2xl font-semibold">A volunteer will review “{title}”</h2>
-            <p className="text-muted">
-              Your request is saved as a private draft. Only you (with the link below) and volunteer verifiers can see it
-              until a verifier approves it.
-            </p>
-            <ReasonList reasons={result.reasons} />
-          </>
-        )}
-      </section>
-
       <section className="flex flex-col gap-3 rounded-2xl border border-amber/40 bg-surface p-5 sm:p-6">
+        <p className="font-mono text-xs uppercase tracking-[0.2em] text-amber">Saved privately</p>
         <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted">Your private link</h2>
         <p className="text-sm text-muted">
           Save it: it&apos;s the only way back to your request while it&apos;s private, and the way a verifier&apos;s questions
@@ -531,7 +381,7 @@ function SubmittedPanel({result, title, savedOnDevice}: {result: Submitted; titl
           {savedOnDevice ? ' This browser remembers it too (My requests).' : ''}
         </p>
         <div className="flex flex-wrap gap-2">
-          <input readOnly value={link} aria-label="Private status link" className={`${input} min-w-0 flex-1 font-mono text-xs`} />
+          <input readOnly value={link} aria-label="Private status link" className={`${inputClass} min-w-0 flex-1 font-mono text-xs`} />
           <button
             type="button"
             className={secondaryButton}
@@ -549,6 +399,8 @@ function SubmittedPanel({result, title, savedOnDevice}: {result: Submitted; titl
           </Link>
         </div>
       </section>
+
+      <StatusTracker token={result.statusToken} catalog={catalog} categoryOrder={categoryOrder} />
     </div>
   )
 }

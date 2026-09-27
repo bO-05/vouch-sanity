@@ -21,7 +21,7 @@ Source of truth for scope and progress. Tick a box only after the item is verifi
 - Drafts-as-gate publishing. Deployed on Vercel.
 
 **SHOULD**
-- Sanity Workflows engine drives the lifecycle (1-day timebox). Fallback: same stages as a `stage` field + transition log on the document, advanced by the same server functions.
+- Sanity Workflows engine drives the lifecycle (1-day timebox). Fallback: same stages as a `stage` field + transition log on the document, advanced by the same server functions. *(Done Day 4: the engine drives it. The `stage` field stays as a mirror written by the effects.)*
 - Policy-as-content: category descriptions, urgency levels, flag questions and thresholds read from Sanity at runtime (editable in Studio, no redeploy).
 - Language flag: non-English requests go to a bilingual verifier.
 - Live updates via Sanity's Live Content API.
@@ -52,12 +52,19 @@ Source of truth for scope and progress. Tick a box only after the item is verifi
 - `proof`: need ref, image asset, ocrText, lines[] {text, amount?}, matches[] {lineIndex, itemKey, probability}, coverage, verdict (auto_verified / needs_review / verified / rejected).
 - `decision`: subject ref (need or proof, **weak**: the need may still be a draft), kind (catalog_match / triage / duplicate / proof_match / health_check), model id, questions (JSON string), answers (JSON string), **stateDigest** (SHA-256 of the state sent; the state itself is not stored, so an unverified plea never leaks through a published decision), outcome, error, latencyMs, inputTokens, createdAt.
 - `review`: subject ref, action (approve / send_back / reject), note, reviewerName, createdAt.
+  - Stored under the private path `review.<hash of the effect key>`, because it may be about a draft. The server shows reviews for published requests. Send-back and reject notes stay private; approval notes are public.
 - `certificate`: need ref, canonical payload, sha256, issuedAt.
 - `policy` (singleton): thresholds (catalog min probability, triage min confidence, max flag probability, proof min match probability, min coverage, receipt min probability), urgency level texts, flag questions (code, label, question text naming `request`, routesTo, optional own threshold, enabled), emergency resources text.
 
 ## Lifecycle (workflow `need-lifecycle`)
 
-intake → triage (effect `jev-triage`) → [review, only if flagged] → open (collect pledges) → proof-check (effect `jev-proof`) → [proof-review, only if flagged] → fulfilled (effect `issue-certificate`). `rejected` is terminal. Send-back returns the request to its author with a note. Workflow subject = the need's base `_id` (not `drafts.`); publishing happens in an effect when triage/review passes.
+As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
+- triage (effect `jev-triage`) → [review, only if flagged] → publishing (effect `publish-need`) → open (collect pledges).
+- open → `submit-proof` → proof_check (effect `jev-proof`) → [proof_review, only if flagged] → certifying (effect `issue-certificate`) → fulfilled.
+- review → send-back → sent_back → resubmit → triage again. `rejected` is terminal. A publish failure returns to review.
+- Both the automatic pass and a verifier's approval enter `publishing`.
+- Workflow subject = the need's base `_id` (not `drafts.`). Instances: `prod.wf-instance.<id>`.
+- Requests that existed before the lifecycle are adopted at `review` or `open` (`adoptAt`; no effect queued).
 
 ## Jev question design (calibrated Sep 27 on 33 synthetic pleas; `web/scripts/calibrate-triage.ts`)
 
@@ -86,11 +93,23 @@ intake → triage (effect `jev-triage`) → [review, only if flagged] → open (
     - Calibration: 33/33.
     - The way back to a draft is `/status#token` (only the SHA-256 is stored).
   - **Still open: the user's live dictation test in Chrome.** Tick this box after it.
-- [ ] Day 4 (Sep 30): Workflows engine lifecycle (timebox) + verifier desk. Approve reuses the intake's revision-guarded publish transaction. Send-back is answered on `/status#token` and resubmitting re-runs triage. The 5 demo drafts in `review` are the test material.
+- [x] Day 4 (Sep 30, done Sep 27): Workflows engine lifecycle (timebox) + verifier desk. Approve reuses the intake's revision-guarded publish transaction. Send-back is answered on `/status#token` and resubmitting re-runs triage. The 5 demo drafts in `review` are the test material.
+  - *Timebox verdict:* adopt the engine. The whole lifecycle is `web/src/workflows/need-lifecycle.ts` (deployed `prod.need-lifecycle.v1`). Functions moved to cdg1, next to the EU Content Lake shard.
+  - *Verified Sep 27 on production:*
+    - Approve → published 4.2 s after the click, live on an open feed with no reload, and the review is in the trail.
+    - Send back → the requester read the note, edited and resubmitted → re-triaged → published.
+    - Reject → the draft stays private and the status page says "Rejected".
+    - Unauthenticated and forged-cookie Server Action POSTs were refused.
+    - The 17 older requests were adopted (not re-triaged).
+    - A PayPal plea that auto-published exposed a gap in the payment flag question. It was reworded in the policy; calibration is 37/37.
 - [ ] Day 5 (Oct 1): proof flow (Tesseract.js + editable lines + Jev match) + certificate.
+  - The proof stages are already deployed in the lifecycle (`open` → `submit-proof` → `proof_check` [`jev-proof`] → `certifying` [`issue-certificate`] or `proof_review` [accept/decline]). Handlers go in `web/src/lib/lifecycle/effects.ts`.
+  - Proof reviews go on the desk. A changed definition becomes v2; running instances stay on v1.
 - [ ] Day 6 (Oct 2): polish, policy-as-content, empty/error states; a simple per-IP rate limit on pledges, catalog matches and submissions (each submission costs 2 Jev calls and a draft); COULD items only if all MUST are green.
   - Idea: a trail "state check" that recomputes each decision's state from the published text and compares it with `stateDigest`.
 - [ ] Day 7 (Oct 3): full production run of every DoD step; demo reset script (delete non-demo pledges, proofs and test docs, then `npm run seed`) and seed demo data; demo video + screenshots.
+  - The reset must also delete the `prod` workflow instances and re-run `web/scripts/workflow-migrate.ts`, since re-seeding resets `need-demo-09/10` to `intake`.
+  - Rate-limit desk sign-in attempts too (Day 6).
 - [ ] Day 8 (Oct 4): DEV post from `handoff/BUILD_LOG.md` (Path Two template); publish by noon PDT.
 
 ## Risks → fallbacks
