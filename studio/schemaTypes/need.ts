@@ -111,6 +111,16 @@ export const need = defineType({
       validation: (rule) => rule.required(),
     }),
     defineField({name: 'triage', type: 'triageSummary', group: 'lifecycle'}),
+    defineField({
+      name: 'statusTokenHash',
+      title: 'Status link hash',
+      type: 'string',
+      group: 'lifecycle',
+      readOnly: true,
+      hidden: true,
+      description:
+        "SHA-256 of the requester's private status link token. The token itself is never stored; only the requester's link can open the private status page.",
+    }),
     defineField({name: 'submittedAt', type: 'datetime', group: 'lifecycle', readOnly: true}),
     defineField({
       name: 'publishedAt',

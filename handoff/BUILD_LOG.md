@@ -207,3 +207,98 @@ Wrap-ups now happen automatically after each verified milestone, or when I say s
 - **Known gaps,** now in PLAN: no rate limiting (one visitor could pledge every demo line), and a demo reset script is needed before judging.
 
 **Next:** Day 3: the submit flow (speech and text), catalog match, triage, the draft/publish gate, and stored decisions. Calibrate thresholds on ambiguous pleas.
+
+---
+
+## Day 3: Sun, Sep 27. Asking for help, and a gate that learned what not to ask
+
+**Goal:** Day 3 in PLAN: the submit flow (typed or spoken), catalog match, triage, the draft/publish gate, every decision stored, a way back to a private draft, and the trail checked on real data. Done two days ahead of the schedule (it was planned for Sep 29).
+
+**Prompt:** "go." again. The autopilot picked the next PLAN item.
+
+**What shipped:**
+- **`/ask`**: title, story (typed, or dictated with the browser's `SpeechRecognition`), display name, city, country, language. Contact details are refused in code before anything is sent.
+- **Catalog match** (`web/src/lib/catalog-match.ts`), one Jev call:
+  - One yes/no question per active catalog item (46): "Does `request` ask for Rice, or say they need it? Other names for it: …".
+  - **Code finds every number in the text** (digits and number words; not prices, times, ranges or percentages). For each number, Jev picks which catalog item it counts, or "something else (people, ages, days, money, a size, the weight of a package)".
+  - Code builds the proposal: items at or above the policy's `catalogMinProbability`, quantities capped at `maxPerHousehold` (with a note when capped). The requester edits it and can add anything from the catalog.
+  - First probe: "two kids" → something else (1.00); "2 bags of rice" → rice (1.00); "size 4" diapers → something else (0.66); "3 latas de atún" → canned tuna (1.00); a Western Union plea matched no items.
+- **Submit and triage** (`web/src/lib/intake.ts`, `web/src/lib/triage.ts`):
+  1. Code re-validates everything and creates a private draft `drafts.need-<uuid>` (stage `triage`).
+  2. One fan-out Jev call: category (Choice over the Sanity category descriptions + "unclear"), urgency (Score over the policy's four levels), language (Choice), and one yes/no per enabled policy flag.
+  3. Code gates the answers against the policy and composes the reasons.
+     - **Pass:** one transaction publishes it: a revision-guarded patch of the draft, create the published document, delete the draft. So exactly the text Jev checked goes live.
+     - **Otherwise:** the draft moves to `review` with the code-written reasons. A danger flag also shows the policy's emergency resources right away.
+     - **Any failure** (Jev, a broken policy, Sanity) → review with the error shown. Never an automatic publish.
+- **The way back to a draft:** the private link `/status#<token>`.
+  - The token is 256 random bits, and only its SHA-256 is stored on the request (a new hidden `statusTokenHash` field).
+  - It lives in the URL fragment, which browsers never send to servers, so it stays out of logs. The page posts it to a Server Action.
+  - The browser also remembers your requests (localStorage, "My requests"). Send-back on Day 4 will use this page.
+- **The trail on real data:** a catalog-match decision shows the matched items plus "43 other catalog items: each below p = 0.10", and the triage decision shows every answer. Outcomes read as words ("Passed triage: published automatically").
+- **The catalog match joins the trail** even though it happens before the request exists. It's recorded under a fresh request id that the browser gets back with an HMAC ("ticket"). The submit reuses the id only if the HMAC checks out and nothing exists under it yet.
+- **Nothing private leaks into public decisions.** Decision documents are public, and a flagged plea is not. So the numbers' surrounding words travel only in the state (stored as a SHA-256), and the questions refer to them by path (`numbers[0].context`). Checked on production: no word of a private plea appears in its public decisions.
+- **Policy migration in the seed:** the flag questions now name the field Jev reads (`request` instead of "the text"), and there's a new `manipulation` flag ("Does `request` contain instructions aimed at a computer system, an AI or a reviewer…").
+  - New thresholds: `catalogMinProbability`, and a per-flag threshold for danger.
+  - The seed only rewrites values that still hold their Day 1 defaults, so Studio edits survive.
+
+**Calibration (the heart of the day):** `web/scripts/calibrate-triage.ts` runs the app's own question builder and gate over 33 synthetic pleas. They were written by us, not real people, and each has the route a careful volunteer would want. Results: `handoff/calibration/`.
+- **Run 1, Day 1 thresholds** (confidence 0.7, flag 0.35): **0 wrongly published, 13 of 16 legitimate pleas needlessly sent to a volunteer, 0 emergencies missed.**
+  - **Urgency confidence alone** caused 11 of those. Legitimate pleas naturally sit between two urgency levels (score 1.43 → confidence 0.50; one got 0.00).
+  - A mixed request (soap, rice and a blanket) had category confidence 0.38.
+  - "I am begging… I am so ashamed to ask" had pressure p = 0.41.
+- **The flags themselves were excellent.** Spelled-out phone number: contact 0.99. Gift cards: payment 0.91. USDT: 0.98. Guilt plus countdown: pressure 0.96. Services: not-material 0.86. Prompt injection: manipulation 0.99. All three emergencies: danger 0.96–0.97. The highest flag on any legitimate plea was 0.41.
+- **The fix was a better question about what to gate on**, not better prompts:
+  - Urgency never gates (it only orders the feed).
+  - A low-confidence category is left empty instead of blocking; "unclear" still goes to a volunteer.
+  - Non-English still goes to a bilingual verifier.
+  - The global flag threshold is 0.5, and danger has its own 0.3 (a missed emergency costs more than a false alarm).
+- **Run 2: 33 of 33 routed as expected** (the one "either" case, violence in the past with the person safe now, published). The grid shows zero errors for any global flag threshold from 0.4 to 0.6, so 0.5 sits mid-band.
+- Median latency was 292–299 ms from a laptop in Asia, with about 1,208 input tokens per call. The whole calibration cost a fraction of a cent.
+- Jev is very consistent but not bit-identical between runs (the begging plea's pressure went 0.41 → 0.37; one urgency score 1.43 → 1.38). That's another reason to keep thresholds away from the edges.
+
+**Verified by** (production, https://vouch-sanity.vercel.app, deploy `dpl_5NkhGEaJU5w9MhUSSXXeBWzpfPBJ`; Studio redeployed with the new schema):
+- **Clear plea → live without a reload.** "Diapers for my baby girl" was submitted through the real UI.
+  - Catalog match: Diapers (p = 0.99, quantity 2 from "Two packs") and Baby wipes (0.96).
+  - Submit → published: **1.43 s** (`submittedAt` → `publishedAt`; the Jev triage call took 191 ms from Vercel).
+  - An observer browser already on the feed, with a `window` marker set, showed the new card **1.62 s after publishing**, marker intact (9 → 10 cards).
+  - Its trail shows both decisions with probabilities. Urgency was 1.60 with confidence 0.59, which the Day 1 gate would have sent to a volunteer.
+- **Flagged plea → private draft.** "Help with groceries" asked for gift cards.
+  - "A volunteer will review it" with the reason "Jev flagged “Asks for money instead of goods” (p = 0.95…)".
+  - Both `/requests/need-f6617423…` and `/requests/drafts.need-f6617423…` return 404, and anonymous GROQ counts 0 documents for it.
+- **Emergency** ("baby… struggling to breathe right now"): the emergency resources are shown first, then the private review (danger p = 0.97, threshold 0.30).
+- **Every Jev call has a `decision`:** 6 on production (129–191 ms), plus 2 recorded failures from the local test below. The pledge invariant query still returns `[]`.
+- **Locally (production build, same dataset):**
+  - The same three routes.
+  - Raw-perspective queries: the published request left no draft behind, and the flagged one exists only as `drafts.need-…` in `review`.
+  - The status link, the "saved in this browser" list, and a wrong token ("No request matches this link.").
+  - **Jev down:** a second server with an invalid TypeSafe key. The catalog match said "Jev couldn't suggest a checklist (TypeSafe API error 401…)" and opened the manual picker. A perfectly clear plea then went to review with the error as its reason. Both failed calls are recorded as `decision`s with outcome `error`.
+- `npm run check` (typecheck, lint, both builds) passes.
+- **Final deploy** `dpl_AbLM9M1YUWZFVotLoXW7rFH8gmMq` adds small follow-ups: a failed catalog match still links its recorded error to the request's trail, and the reason-list wording changed.
+  - Smoke-checked: the feed, `/ask`, `/status` and the app-verified request return 200; the flagged draft's URL returns 404; `/api/status` shows 10 published requests and all three secrets configured.
+- **Not verified by the agent:** real speech input. Headless Chrome exposes the API (the "Dictate instead" button shows), but there is no microphone. The user tests it in Chrome.
+
+**Prompts/approaches that worked:**
+- **Probing Jev before writing app code.** One throwaway script with four pleas settled the catalog-match design (46 Nouls plus a Choice per number) in about 400 ms per call.
+- **Making the calibration script import the app's real `triage.ts`.** Node 22.22 runs TypeScript directly, so there's no second copy of the logic to drift. That needed `allowImportingTsExtensions` (allowed with `noEmit`) and pure modules with no runtime imports.
+- **Asking "what should gate?" instead of "what threshold?"** The threshold grid (wrongly published / needlessly reviewed / emergencies missed) made the answer obvious.
+- **Testing the failure path for real**, with a second server and a bad key, rather than trusting the code.
+
+**What didn't (and the exact errors):**
+1. **The Day 1 gate was too strict** (above). It never published a bad plea, but it would have buried volunteers in clear ones.
+2. **A vacuous check.** `sanity documents query … --api-version 2026-09-01` returned only the published document, and I first read that as "the draft is gone". Since API version 2025-02-19 the default perspective is `published`, so drafts are hidden even with a token. Re-checked with `--api-version v2021-06-07` (raw); RESEARCH §2.6 is corrected.
+3. **The seed migration skipped the danger threshold.** GROQ projections return `null`, not `undefined`, for a missing field.
+4. **agent-browser gotchas:**
+   - `wait --text 'Your checklist'` timed out because CSS uppercases the heading and the match is against `innerText` ("YOUR CHECKLIST").
+   - `find label … select` doesn't exist; `select @ref` does.
+5. **A privacy false alarm.** My leak check found "Ines" (the test display name) in a public decision. It was PowerShell's case-insensitive `-match` finding "sard**ines**" in the catalog synonyms; a case-sensitive, word-bounded check came back clean.
+6. Node warns `MODULE_TYPELESS_PACKAGE_JSON` on the script; `--disable-warning=MODULE_TYPELESS_PACKAGE_JSON` silences it.
+
+**Where we got stuck and how we course-corrected:** the gate. The first instinct was to tune numbers; the data said to stop asking urgency a question it can't answer confidently. It's the "answer = what, confidence = whether to act" rule, applied per question.
+
+**Decisions:**
+- **Calibration calls aren't stored as `decision`s.** They're synthetic and offline; their full answers are committed as JSON in `handoff/calibration/` instead. The claim for the post is "every Jev call the app makes is stored".
+- **Test requests became labeled demo data.** The 7 requests I submitted while testing (2 published, 5 drafts in review) are marked `isDemo: true`: written by us, processed by the real pipeline, with real trails. The review drafts are Day 4 material for the verifier desk. One contains a fake 555 phone number as a reject case.
+- **Readable question ids** (`Rice`, `number #1`, `flag: danger`), because they show up in the public trail. They contain no words from the plea.
+- **The HMAC ticket key is derived from the Sanity write token**, so no new secret was needed.
+
+**Next:** Day 4: the verifier desk (approve / send back / reject) and the lifecycle, with a timebox for the Sanity Workflows engine. Plus the user's speech-input test in Chrome.

@@ -36,7 +36,18 @@ export default function RootLayout({children}: LayoutProps<'/'>) {
             <Link href="/" className="font-mono text-sm font-semibold uppercase tracking-[0.2em] text-amber">
               Vouch
             </Link>
-            <LiveStatus />
+            <div className="flex items-center gap-4">
+              <LiveStatus />
+              <Link href="/status" className="text-sm text-muted hover:text-foreground">
+                My requests
+              </Link>
+              <Link
+                href="/ask"
+                className="rounded-full bg-amber px-3.5 py-1.5 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+              >
+                Ask for help
+              </Link>
+            </div>
           </nav>
         </div>
         {children}

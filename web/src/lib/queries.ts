@@ -141,6 +141,23 @@ export const CATEGORY_CRITERIA_QUERY = defineQuery(`
 
 export type CategoryCriterion = {slug: string; description: string}
 
+/** Categories with their descriptions (Jev's option texts in triage). */
+export const CATEGORY_OPTIONS_QUERY = defineQuery(`
+  *[_type == "category"] | order(order asc) {_id, "slug": slug.current, title, description}
+`)
+
+/** Active supply items, the only things a checklist can contain. */
+export const CATALOG_QUERY = defineQuery(`
+  *[_type == "supplyItem" && active != false] | order(name asc) {
+    _id, name, synonyms, unit, maxPerHousehold, "category": category->title
+  }
+`)
+
+/** The published policy singleton. Drafts of it (unpublished Studio edits) never apply. */
+export const POLICY_QUERY = defineQuery(`
+  *[_id == "policy"][0]{thresholds, urgencyLevels, flagQuestions, emergencyResources}
+`)
+
 export const STATUS_COUNTS_QUERY = defineQuery(`{
   "publishedNeeds": count(*[_type == "need"]),
   "categories": count(*[_type == "category"]),

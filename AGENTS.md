@@ -75,6 +75,12 @@ Story hook for the post: "A mutual-aid app whose AI can't write a single sentenc
   - `web/src/lib/sanity/live.ts`: `SanityLive` plus `fetchPublished`, the uncached reads for live pages.
   - `web/src/lib/queries.ts`: GROQ.
   - `web/src/app/requests/[id]/`: the request page, the pledge form and the pledge Server Action.
+  - `web/src/lib/intake.ts`: the only place requests are created and published. Catalog match, submit, triage call, gate, then the revision-guarded publish transaction or `review`.
+  - `web/src/lib/triage.ts` and `web/src/lib/catalog-match.ts`: pure modules (no runtime imports) with the question builders and the code gates. They're shared with `web/scripts/`.
+  - `web/src/lib/intake-rules.ts`: form limits and the contact check, shared by the browser and the server.
+  - `web/src/lib/status.ts`: the private status lookup (SHA-256 of the `/status#token`).
+  - `web/src/app/ask/` (the form, dictation hook, actions) and `web/src/app/status/` (the private status page).
+  - `web/scripts/calibrate-triage.ts` + `calibration-pleas.ts`: threshold calibration on synthetic pleas. Results go to `handoff/calibration/`.
 
 ## Commands
 
@@ -93,6 +99,8 @@ Run from the repo root (npm workspaces `web` and `studio`) unless noted.
 | Deploy Studio | `npm run deploy:studio` | → https://vouch-aid.sanity.studio (appId is in `studio/sanity.cli.ts`, so there's no prompt) |
 | Deploy web | `npx -y vercel@latest deploy --prod --yes` (repo root) | The project has Root Directory `web`. The global Vercel CLI (37.x) is too old: always use `npx vercel@latest` |
 | Sanity CLI | `& "..\node_modules\.bin\sanity.cmd" <cmd>` (from `studio/`) | The binary is hoisted to the root `node_modules`. `npx sanity ...` can hang for minutes here, so call the local binary. Non-interactive commands: `documents create <file> --replace`, `documents delete <ids>`, `cors list`, `cors add <origin> --no-credentials` |
+| Query drafts | `... documents query "<groq>" --api-version v2021-06-07` | API versions 2025-02-19 and later default to the `published` perspective and hide drafts even with your login. Use the old version (raw perspective) whenever a check must see drafts |
+| Calibrate triage | `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file=.env.local scripts/calibrate-triage.ts` (from `web/`) | Real Jev calls on the synthetic pleas, using the live policy. Prints a table and a threshold grid, and writes `handoff/calibration/triage-*.json`. Nothing is written to Sanity |
 | Browser checks | `npx -y agent-browser --session <name> <cmd>` | Not on PATH. The first `open` in a session starts a daemon, and the shell tool reports `ChildProcess.kill`, but the session keeps working. Use two sessions for live-update checks |
 | Call a Server Action directly | See RESEARCH §2.7 | For adversarial tests (over-pledge, drafts, races). Action ids differ per build |
 | Pledge invariant | Anonymous GROQ: `*[_type=='need']{_id, 'bad': items[coalesce(pledgedQty,0) != coalesce(math::sum(*[_type=='pledge' && status!='cancelled' && need._ref==^.^._id && itemKey==^._key].quantity),0)]._key}[count(bad) > 0]` | Must return `[]` |

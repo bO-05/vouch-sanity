@@ -47,22 +47,28 @@ Source of truth for scope and progress. Tick a box only after the item is verifi
 
 - `category`: title, slug, description (used verbatim as Jev Choice criteria).
 - `supplyItem`: name, synonyms[], unit, unitPrice (USD), category ref, maxPerHousehold, active.
-- `need`: title, story (requester's own words, never rewritten), language, displayName, city, country, geopoint, category ref, urgency (0-3), items[] {supplyItem ref, quantity, pledgedQty}, stage, triageSummary (flags + min confidence), publishedAt. Created as a draft; publishing = verified.
+- `need`: title, story (requester's own words, never rewritten), language, displayName, city, country, geopoint, category ref, urgency (0-3), items[] {supplyItem ref, quantity, pledgedQty}, stage, triageSummary (outcome, reasons, fired flags, min confidence, decision ref), statusTokenHash (SHA-256 of the private status link token; hidden), publishedAt. Created as a draft; publishing = verified.
 - `pledge`: need ref, itemKey, quantity, donorDisplayName, status (pledged / delivered / cancelled).
 - `proof`: need ref, image asset, ocrText, lines[] {text, amount?}, matches[] {lineIndex, itemKey, probability}, coverage, verdict (auto_verified / needs_review / verified / rejected).
 - `decision`: subject ref (need or proof, **weak**: the need may still be a draft), kind (catalog_match / triage / duplicate / proof_match / health_check), model id, questions (JSON string), answers (JSON string), **stateDigest** (SHA-256 of the state sent; the state itself is not stored, so an unverified plea never leaks through a published decision), outcome, error, latencyMs, inputTokens, createdAt.
 - `review`: subject ref, action (approve / send_back / reject), note, reviewerName, createdAt.
 - `certificate`: need ref, canonical payload, sha256, issuedAt.
-- `policy` (singleton): thresholds (triage min confidence, max flag probability, proof min match probability, min coverage), urgency level texts, flag question texts, emergency resources text.
+- `policy` (singleton): thresholds (catalog min probability, triage min confidence, max flag probability, proof min match probability, min coverage, receipt min probability), urgency level texts, flag questions (code, label, question text naming `request`, routesTo, optional own threshold, enabled), emergency resources text.
 
 ## Lifecycle (workflow `need-lifecycle`)
 
 intake → triage (effect `jev-triage`) → [review, only if flagged] → open (collect pledges) → proof-check (effect `jev-proof`) → [proof-review, only if flagged] → fulfilled (effect `issue-certificate`). `rejected` is terminal. Send-back returns the request to its author with a note. Workflow subject = the need's base `_id` (not `drafts.`); publishing happens in an effect when triage/review passes.
 
-## Jev question design (initial; calibrate on ~30 sample pleas)
+## Jev question design (calibrated Sep 27 on 33 synthetic pleas; `web/scripts/calibrate-triage.ts`)
 
-- Catalog match (before submit, UX assist): one Noul per active supplyItem ("The request asks for {name} (also called {synonyms})"). Quantities pre-filled by code from numbers in the text; requester edits.
-- Triage (on submit, one fan-out call): category (Choice from `category` docs + "unclear"), urgency (Score, levels from policy), immediate danger (Noul), personal contact info present (Noul), scam signals (Nouls: gift cards/crypto/wire to a third party; pressure for cash; not a material-help request), language (Choice). Gate in code with policy thresholds.
+- Catalog match (before submit, UX assist), one call:
+  - One Noul per active supplyItem ("Does `request` ask for {name}, or say they need it? Other names for it: …").
+  - Code finds the numbers in the text, and one Choice per number picks the catalog item it counts, or "something else".
+  - Code builds the proposal (policy `catalogMinProbability`, quantities capped at `maxPerHousehold`). The requester edits it.
+- Triage (on submit, one fan-out call):
+  - Category (Choice from `category` docs + "unclear"), urgency (Score, levels from policy), language (Choice), and one Noul per enabled policy flag (danger, contact info, payment redirect, pressure, not material, manipulation).
+  - **Gate in code:** any flag at or above its threshold (danger 0.3, others 0.5) → volunteer (danger → emergency resources too); "unclear" category → volunteer; non-English or language confidence < 0.7 → bilingual volunteer.
+  - **Not gated:** urgency never gates (it only orders the feed). A category below 0.7 confidence is left empty rather than blocking.
 - Duplicates: GROQ finds recent needs in the same city/category → Noul "same household, same need".
 - Proof match: Noul per (receipt line × checklist item); code assigns matches greedily and computes coverage; plus a "this text is a store receipt" Noul.
 
@@ -70,10 +76,20 @@ intake → triage (effect `jev-triage`) → [review, only if flagged] → open (
 
 - [x] Day 1 (Sep 26-27): GitHub repo; scaffold `web/` + `studio/`; Sanity project + public dataset; schemas; seed (categories, ~40 supply items, policy, ~10 needs); Studio deployed; skeleton `web/` deployed to Vercel; first real Jev call from a server route; fill AGENTS.md Commands. *(Verified Sep 26: project `o8hcpsct`, Studio vouch-aid.sanity.studio, web vouch-sanity.vercel.app; anonymous GROQ shows 8 published / 0 drafts; prod Jev call recorded as a decision.)*
 - [x] Day 2 (Sep 28, done Sep 27): feed + request page + pledges (live updates). The pledge updates `pledgedQty` in the same transaction as the pledge doc (`ifRevisionId`); drafts return 404. *(Verified Sep 27 on production: two browsers, B updated ~1.4 s after A's pledge with no reload; `pledgedQty` and the pledge doc correct in Sanity; direct Server Action POSTs refused over-pledging, a draft-only request and a cross-site Origin; 6 simultaneous pledges for 5 units → exactly 5 accepted; drafts 404.)*
-- [ ] Day 3 (Sep 29): submit flow (speech + text) → catalog match → triage → draft/publish gate → decisions stored. Also decide how a requester returns to their draft (needed for send-back), and check the trail's decision rendering on real data.
-- [ ] Day 4 (Sep 30): Workflows engine lifecycle (timebox) + verifier desk.
+- [ ] Day 3 (Sep 29, done Sep 27 except one check): submit flow (speech + text) → catalog match → triage → draft/publish gate → decisions stored. Also decide how a requester returns to their draft (needed for send-back), and check the trail's decision rendering on real data.
+  - *Verified Sep 27 on production:*
+    - A clear plea was published in 1.43 s and appeared on an open feed 1.62 s later with no reload; its trail shows both decisions.
+    - A gift-card plea stayed a private draft (both URLs 404, anonymous count 0) with a code-written reason.
+    - The emergency plea showed the resources.
+    - All 6 production Jev calls are stored as decisions.
+    - Jev down (bad key) → review with the error.
+    - Calibration: 33/33.
+    - The way back to a draft is `/status#token` (only the SHA-256 is stored).
+  - **Still open: the user's live dictation test in Chrome.** Tick this box after it.
+- [ ] Day 4 (Sep 30): Workflows engine lifecycle (timebox) + verifier desk. Approve reuses the intake's revision-guarded publish transaction. Send-back is answered on `/status#token` and resubmitting re-runs triage. The 5 demo drafts in `review` are the test material.
 - [ ] Day 5 (Oct 1): proof flow (Tesseract.js + editable lines + Jev match) + certificate.
-- [ ] Day 6 (Oct 2): polish, policy-as-content, empty/error states; a simple per-IP rate limit on pledges and submissions; COULD items only if all MUST are green.
+- [ ] Day 6 (Oct 2): polish, policy-as-content, empty/error states; a simple per-IP rate limit on pledges, catalog matches and submissions (each submission costs 2 Jev calls and a draft); COULD items only if all MUST are green.
+  - Idea: a trail "state check" that recomputes each decision's state from the published text and compares it with `stateDigest`.
 - [ ] Day 7 (Oct 3): full production run of every DoD step; demo reset script (delete non-demo pledges, proofs and test docs, then `npm run seed`) and seed demo data; demo video + screenshots.
 - [ ] Day 8 (Oct 4): DEV post from `handoff/BUILD_LOG.md` (Path Two template); publish by noon PDT.
 

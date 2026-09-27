@@ -190,7 +190,8 @@ export const flagQuestion = defineType({
       name: 'question',
       type: 'text',
       rows: 3,
-      description: 'Sent verbatim to Jev as a yes/no (Noul) question about the request.',
+      description:
+        'Sent verbatim to Jev as a yes/no (Noul) question. Refer to the request as `request` (with backticks): that is the name of the field Jev reads.',
       validation: (rule) => rule.required().min(20).max(500),
     }),
     defineField({
@@ -200,6 +201,14 @@ export const flagQuestion = defineType({
       options: {list: FLAG_ROUTES, layout: 'radio'},
       initialValue: 'review',
       validation: (rule) => rule.required(),
+    }),
+    defineField({
+      name: 'threshold',
+      title: 'Own threshold (optional)',
+      type: 'number',
+      description:
+        'Fires at or above this probability instead of the global maximum flag probability. Use a lower number where a miss costs more than a false alarm (emergencies).',
+      validation: (rule) => rule.min(0).max(1),
     }),
     defineField({name: 'enabled', type: 'boolean', initialValue: true}),
   ],
@@ -229,14 +238,19 @@ export const policyThresholds = defineType({
   type: 'object',
   fields: [
     probability(
+      'catalogMinProbability',
+      'Catalog match: minimum probability',
+      "A catalog item is proposed for the requester's checklist only at or above this probability, and a number from their words becomes its quantity only at or above it too. The requester edits the checklist either way.",
+    ),
+    probability(
       'triageMinConfidence',
       'Triage: minimum confidence',
-      "Auto-publish only if Jev's category and urgency answers are at least this confident.",
+      "Publish automatically only if Jev is at least this confident that the request is in English. Jev's category is shown only at or above it (otherwise a volunteer can set one). Urgency never blocks publishing: it only orders the feed.",
     ),
     probability(
       'maxFlagProbability',
       'Triage: maximum flag probability',
-      'Any enabled flag at or above this probability sends the request to a human.',
+      "Any enabled flag at or above this probability sends the request to a human, unless the flag has its own threshold.",
     ),
     probability(
       'proofMinMatchProbability',

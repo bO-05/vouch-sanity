@@ -40,6 +40,23 @@ export const DECISION_KIND_LABELS: Record<string, string> = {
   health_check: 'Health check',
 }
 
+/** What happened to a request at triage (the need's `triage.outcome`). */
+export const TRIAGE_OUTCOME_LABELS: Record<string, string> = {
+  auto_published: 'Passed triage: published automatically',
+  needs_review: 'Sent to a volunteer verifier',
+  emergency: 'Emergency resources shown, sent to a volunteer verifier',
+  error: 'Something failed, so it was sent to a volunteer verifier',
+}
+
+/** What code decided from Jev's answers (the decision's `outcome`). */
+export const DECISION_OUTCOME_LABELS: Record<string, string> = {
+  passed_gate: 'passed the gate',
+  needs_review: 'needs a volunteer',
+  emergency: 'possible emergency',
+  health_check_ok: 'health check ok',
+  error: 'error',
+}
+
 export const REVIEW_ACTION_LABELS: Record<string, string> = {
   approve: 'Approved',
   send_back: 'Sent back',

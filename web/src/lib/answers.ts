@@ -7,6 +7,9 @@ export type AnswerRow = {question: string; answer: string}
 
 type Probabilities = Record<string, number>
 
+/** Catalog-match decisions ask one yes/no per catalog item; only the plausible ones are listed. */
+const CATALOG_SHOW_AT = 0.1
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -35,13 +38,31 @@ function describe(answer: unknown): string {
   }
 }
 
+function catalogRows(entries: Array<[string, unknown]>): AnswerRow[] {
+  const nouls = entries.filter(([, answer]) => isRecord(answer) && answer.type === 'noul') as Array<
+    [string, {noul: number}]
+  >
+  const shown = nouls.filter(([, answer]) => answer.noul >= CATALOG_SHOW_AT).sort((a, b) => b[1].noul - a[1].noul)
+  const others = entries.filter(([, answer]) => !(isRecord(answer) && answer.type === 'noul'))
+  const hidden = nouls.length - shown.length
+  return [
+    ...shown.map(([question, answer]) => ({question, answer: describe(answer)})),
+    ...(hidden > 0
+      ? [{question: `${hidden} other catalog items`, answer: `each below p = ${CATALOG_SHOW_AT.toFixed(2)}`}]
+      : []),
+    ...others.map(([question, answer]) => ({question, answer: describe(answer)})),
+  ]
+}
+
 /** Returns null when the text isn't valid answers JSON, so the caller can show it raw. */
-export function answerRows(answersJson: string | null): AnswerRow[] | null {
+export function answerRows(answersJson: string | null, kind?: string): AnswerRow[] | null {
   if (!answersJson) return []
   try {
     const parsed: unknown = JSON.parse(answersJson)
     if (!isRecord(parsed)) return null
-    return Object.entries(parsed).map(([question, answer]) => ({question, answer: describe(answer)}))
+    const entries = Object.entries(parsed)
+    if (kind === 'catalog_match') return catalogRows(entries)
+    return entries.map(([question, answer]) => ({question, answer: describe(answer)}))
   } catch {
     return null
   }

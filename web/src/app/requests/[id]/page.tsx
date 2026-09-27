@@ -9,10 +9,12 @@ import {NEED_QUERY, type NeedDecision, type NeedDetail} from '@/lib/queries'
 import {fetchPublished} from '@/lib/sanity/live'
 import {
   DECISION_KIND_LABELS,
+  DECISION_OUTCOME_LABELS,
   LANGUAGE_LABELS,
   PLEDGEABLE_STAGE,
   REVIEW_ACTION_LABELS,
   STAGE_LABELS,
+  TRIAGE_OUTCOME_LABELS,
   URGENCY_LABELS,
 } from '@/lib/vocab'
 import {PledgeForm, type PledgeLine} from './pledge-form'
@@ -71,14 +73,15 @@ function Card({title, children, id}: {title: string; children: ReactNode; id: st
 }
 
 function DecisionEntry({decision}: {decision: NeedDecision}) {
-  const rows = answerRows(decision.answers)
+  const rows = answerRows(decision.answers, decision.kind)
   const when = timeAgo(decision.createdAt)
+  const outcome = decision.error ? 'error' : decision.outcome
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-border p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="font-medium">
           Jev · {DECISION_KIND_LABELS[decision.kind] ?? decision.kind}
-          <span className="text-muted"> → {decision.error ? 'error' : (decision.outcome ?? '…')}</span>
+          <span className="text-muted"> → {outcome ? (DECISION_OUTCOME_LABELS[outcome] ?? outcome) : '…'}</span>
         </p>
         <p className="font-mono text-xs text-muted">
           {[decision.model, typeof decision.latencyMs === 'number' ? `${decision.latencyMs} ms` : null, when]
@@ -223,9 +226,11 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
             {need.triage?.outcome ? (
               <div className="flex flex-col gap-1 text-sm">
                 <p>
-                  Triage outcome: <span className="font-medium">{need.triage.outcome}</span>
+                  <span className="font-medium">
+                    {TRIAGE_OUTCOME_LABELS[need.triage.outcome] ?? need.triage.outcome}
+                  </span>
                   {typeof need.triage.minConfidence === 'number'
-                    ? ` · lowest answer confidence ${need.triage.minConfidence.toFixed(2)}`
+                    ? ` · lowest gating confidence ${need.triage.minConfidence.toFixed(2)} (category and language)`
                     : null}
                 </p>
                 {need.triage.reasons?.length ? (
