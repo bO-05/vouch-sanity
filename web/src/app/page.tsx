@@ -1,28 +1,19 @@
-import {client} from '@/lib/sanity/client'
+import Link from 'next/link'
 import {dataset, projectId} from '@/lib/sanity/config'
+import {fetchPublished} from '@/lib/sanity/live'
+import {pledgedOn, totals} from '@/lib/format'
 import {FEED_QUERY, type FeedNeed} from '@/lib/queries'
 import {STAGE_LABELS, URGENCY_LABELS} from '@/lib/vocab'
 
-// Day 1 skeleton: always read fresh. Live Content API arrives with the real feed.
+// Pledge counts must be current: render per request, and Sanity Live refreshes the page.
 export const dynamic = 'force-dynamic'
 
-function progress(need: FeedNeed): {pledged: number; requested: number} {
-  return (need.items ?? []).reduce(
-    (sum, item) => ({
-      pledged: sum.pledged + Math.min(item.pledged, item.quantity),
-      requested: sum.requested + item.quantity,
-    }),
-    {pledged: 0, requested: 0},
-  )
-}
-
 function NeedCard({need}: {need: FeedNeed}) {
-  const {pledged, requested} = progress(need)
-  const percent = requested > 0 ? Math.round((pledged / requested) * 100) : 0
+  const {pledged, requested, percent} = totals(need.items)
   const urgency = typeof need.urgency === 'number' ? URGENCY_LABELS[need.urgency] : null
 
   return (
-    <article className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5">
+    <article className="relative flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 transition-colors focus-within:border-amber/60 hover:border-amber/60">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {urgency ? (
           <span
@@ -47,7 +38,12 @@ function NeedCard({need}: {need: FeedNeed}) {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold leading-snug">{need.title}</h2>
+        <h2 className="text-lg font-semibold leading-snug">
+          {/* The whole card is the link target; the title carries the accessible name. */}
+          <Link href={`/requests/${need._id}`} className="after:absolute after:inset-0 focus:outline-none">
+            {need.title}
+          </Link>
+        </h2>
         <p className="mt-1 text-sm text-muted">
           {need.displayName} · {need.city}, {need.country}
         </p>
@@ -61,7 +57,7 @@ function NeedCard({need}: {need: FeedNeed}) {
               {item.unit ? <span className="text-muted"> ({item.unit})</span> : null}
             </span>
             <span className="shrink-0 font-mono text-xs text-muted">
-              {Math.min(item.pledged, item.quantity)}/{item.quantity}
+              {pledgedOn(item)}/{item.quantity}
             </span>
           </li>
         ))}
@@ -76,7 +72,7 @@ function NeedCard({need}: {need: FeedNeed}) {
           aria-valuemax={100}
           aria-label="Share of requested units pledged"
         >
-          <div className="h-full rounded-full bg-amber" style={{width: `${percent}%`}} />
+          <div className="h-full rounded-full bg-amber transition-[width] duration-500" style={{width: `${percent}%`}} />
         </div>
         <p className="text-xs text-muted">
           {pledged} of {requested} units pledged · {STAGE_LABELS[need.stage] ?? need.stage}
@@ -90,7 +86,7 @@ export default async function Home() {
   let needs: FeedNeed[] = []
   let loadError: string | null = null
   try {
-    needs = await client.fetch<FeedNeed[]>(FEED_QUERY)
+    needs = await fetchPublished<FeedNeed[]>(FEED_QUERY)
   } catch (error) {
     loadError = error instanceof Error ? error.message : 'Unknown error'
   }
@@ -98,14 +94,14 @@ export default async function Home() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-5 py-10 sm:px-8">
       <header className="flex flex-col gap-3">
-        <p className="font-mono text-xs uppercase tracking-[0.2em] text-amber">Vouch</p>
+        <p className="font-mono text-xs uppercase tracking-[0.2em] text-amber">Verified mutual aid</p>
         <h1 className="max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">
-          Verified mutual aid. The AI can&apos;t write a single sentence.
+          Neighbors ask for help. The AI can&apos;t write a single sentence.
         </h1>
         <p className="max-w-2xl text-muted">
-          Neighbors ask for help in their own words. Jev only makes typed decisions with calibrated
-          probabilities; anything uncertain goes to a volunteer. Every request below has been verified:
-          in Sanity, unverified requests stay private drafts.
+          People ask in their own words. Jev only makes typed decisions with calibrated probabilities, and
+          anything uncertain goes to a volunteer. A request shows up here only once it&apos;s verified: in
+          Sanity, unverified requests stay private drafts. Pick one and pledge an item from its checklist.
         </p>
       </header>
 
@@ -128,8 +124,8 @@ export default async function Home() {
 
       <footer className="mt-auto border-t border-border pt-6 text-xs text-muted">
         Content lives in Sanity: project <span className="font-mono">{projectId}</span>, public dataset{' '}
-        <span className="font-mono">{dataset}</span> (published = verified; drafts stay private). Demo
-        requests are samples written by the Vouch team.
+        <span className="font-mono">{dataset}</span> (published = verified; drafts stay private). Cards marked
+        Demo are samples written by the Vouch team.
       </footer>
     </main>
   )

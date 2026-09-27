@@ -67,7 +67,14 @@ Story hook for the post: "A mutual-aid app whose AI can't write a single sentenc
 - `handoff/PROTOTYPE_LESSONS.md`: what the prototype got wrong, and what's worth porting (with paths in the old repo).
 - `handoff/BUILD_LOG.md`: dated journal that feeds the DEV post's "My Build Process" section.
 - App layout: `web/` (Next.js 16 App Router), `studio/` (Sanity Studio v6: `schemaTypes/`, `structure.ts`, `scripts/seed.ts`), later `workflows/` (workflow definitions + `sanity.workflow.ts`) and optionally `desk/` (App SDK). npm workspaces at the root.
-- Web internals: `web/src/lib/jev.ts` (the only place Jev is called; records every call as a `decision`), `web/src/lib/sanity/client.ts` (public, published-only), `web/src/lib/sanity/write-client.ts` (server-only editor token), `web/src/lib/queries.ts` (GROQ).
+- Web internals:
+  - `web/src/lib/jev.ts`: the only place Jev is called. It records every call as a `decision`.
+  - `web/src/lib/pledges.ts`: the only place pledges are written. Code validation, then one `ifRevisionId`-guarded transaction, retried on 409.
+  - `web/src/lib/sanity/client.ts`: public, published-only.
+  - `web/src/lib/sanity/write-client.ts`: server-only editor token.
+  - `web/src/lib/sanity/live.ts`: `SanityLive` plus `fetchPublished`, the uncached reads for live pages.
+  - `web/src/lib/queries.ts`: GROQ.
+  - `web/src/app/requests/[id]/`: the request page, the pledge form and the pledge Server Action.
 
 ## Commands
 
@@ -85,7 +92,10 @@ Run from the repo root (npm workspaces `web` and `studio`) unless noted.
 | Seed Sanity | `npm run seed` | `studio/scripts/seed.ts` via `sanity exec --with-user-token`. Idempotent; the policy uses createIfNotExists, so Studio edits survive |
 | Deploy Studio | `npm run deploy:studio` | → https://vouch-aid.sanity.studio (appId is in `studio/sanity.cli.ts`, so there's no prompt) |
 | Deploy web | `npx -y vercel@latest deploy --prod --yes` (repo root) | The project has Root Directory `web`. The global Vercel CLI (37.x) is too old: always use `npx vercel@latest` |
-| Sanity CLI | `node_modules\.bin\sanity.cmd <cmd>` (from `studio/`) | `npx sanity ...` can hang for minutes here; call the local binary |
+| Sanity CLI | `& "..\node_modules\.bin\sanity.cmd" <cmd>` (from `studio/`) | The binary is hoisted to the root `node_modules`. `npx sanity ...` can hang for minutes here, so call the local binary. Non-interactive commands: `documents create <file> --replace`, `documents delete <ids>`, `cors list`, `cors add <origin> --no-credentials` |
+| Browser checks | `npx -y agent-browser --session <name> <cmd>` | Not on PATH. The first `open` in a session starts a daemon, and the shell tool reports `ChildProcess.kill`, but the session keeps working. Use two sessions for live-update checks |
+| Call a Server Action directly | See RESEARCH §2.7 | For adversarial tests (over-pledge, drafts, races). Action ids differ per build |
+| Pledge invariant | Anonymous GROQ: `*[_type=='need']{_id, 'bad': items[coalesce(pledgedQty,0) != coalesce(math::sum(*[_type=='pledge' && status!='cancelled' && need._ref==^.^._id && itemKey==^._key].quantity),0)]._key}[count(bad) > 0]` | Must return `[]` |
 | Jev health check | `POST /api/jev/health` with header `x-verifier-passcode` | One real Jev call, recorded as a `decision` doc |
 | Status | `GET /api/status` | Sanity counts plus which server secrets are set (booleans only) |
 

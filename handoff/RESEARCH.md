@@ -86,6 +86,25 @@ Docs index for agents: https://www.sanity.io/docs/llms.txt
 - Public dataset check (verified): an anonymous `GET https://o8hcpsct.api.sanity.io/v2026-09-01/data/query/production?query=...` returns published documents only. `drafts.*` never appear, even when queried by id.
 - Vercel env vars: with CLI v60, `vercel env add` works non-interactively. We used the REST API instead (`POST /v10/projects/{id}/env?teamId=...&upsert=true`), reading values from `web/.env.local` inside PowerShell so none were printed. Secrets are `type: encrypted`, `NEXT_PUBLIC_*` values are `plain`.
 - **Vercel CLI must be ≥ 47.2.2.** The global 37.12.1 fails with "This endpoint requires version 47.2.2 or later"; use `npx -y vercel@latest` (60.1.3 on Sep 26). v60 can set the Root Directory: `vercel project update <name> --root-directory web --framework nextjs --node-version 22.x --yes`.
+- More non-interactive CLI commands (verified Sep 27): `sanity documents create <file.json> --replace`, `sanity documents delete <id> [<id>...]`, `sanity cors list`, `sanity cors add <origin> --no-credentials`.
+
+### 2.7 Live Content API with Next.js 16 (verified Sep 27, next-sanity 13.3.4, Next 16.3.6)
+- **`defineLive` has two implementations, picked by export condition.**
+  - `next-js`: Next adds this condition **only when `cacheComponents: true`**. Here `sanityFetch` calls `cacheTag`/`cacheLife` and must run inside `'use cache'`.
+  - `react-server`: the default. `sanityFetch` makes **two** requests per query, one to get the sync tags and one for the data with `next.tags`.
+- **The default `<SanityLive />` action in production** runs `revalidateTag(tag, 'max')` and then `router.refresh()`. In development it runs `updateTag`.
+  - The Next 16 docs (`server-actions.md`, `revalidateTag.md`) say `'max'` means stale-while-revalidate: the next read gets the stale value, and the action response includes no re-render.
+  - For live counters we therefore render per request (`dynamic = 'force-dynamic'`), read uncached (`useCdn: false`, `cache: 'no-store'`), and use `<SanityLive action="refresh" />`.
+  - `force-dynamic` equals `fetchCache = 'force-no-store'`, which even overrides `next: {revalidate: false}` on a fetch.
+- **CORS:** the browser's Live Content API connection needs the site origin in the project's CORS list; without it, SanityLive reports a CORS error. No credentials are needed for published-only events.
+- **Handlers:** `onWelcome`, `onReconnect`, `onError` and `onGoAway` can be functions exported from a `'use client'` module. They pass through the server `SanityLive` component as client references, which is how the "Live" badge reflects the real connection state.
+- **Public actions:** next-sanity always bundles `revalidateSyncTagsAction` as a Server Action (it shows up in `server-reference-manifest.json`), even when `action="refresh"` is used. It's harmless for us, since nothing is cached, but it is a public endpoint.
+- **Transactions:** a failed `ifRevisionId` guard comes back as HTTP 409 (`ClientError.statusCode === 409`) and the whole transaction is rolled back. `setIfMissing` + `inc` in one patch initializes a missing `items[_key=="…"].pledgedQty` and then increments it.
+- **Testing a Server Action directly:** send `POST <page URL>` with these parts:
+  - Headers: `Next-Action: <id>` and `Origin` equal to the host (otherwise Next's CSRF check rejects it with a 500).
+  - Body: `Content-Type: text/plain`, containing a JSON array of the arguments.
+  - Where to get the id: locally from `web/.next/server/server-reference-manifest.json`; in production from the page's JS chunk (ids differ per build).
+  - The response is a Flight stream; the line containing `"status"` carries the return value.
 
 ---
 

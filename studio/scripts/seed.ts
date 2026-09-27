@@ -6,7 +6,8 @@
  * so no token file is needed.)
  *
  * Idempotent: deterministic ids + createOrReplace. The policy uses createIfNotExists so edits made
- * in the Studio survive a re-seed.
+ * in the Studio survive a re-seed. Each checklist line's pledgedQty is recomputed from every active
+ * pledge in the dataset (demo and real), so re-seeding never drops a real donor's pledge.
  *
  * Honesty rules for demo data:
  * - Every demo request and pledge has isDemo: true and is labeled "Demo" in the app.
@@ -435,8 +436,35 @@ const PLEDGES: Array<[string, string, string, number, string, number]> = [
 
 // ---------------------------------------------------------------------------
 
+type ActivePledge = {id: string; needId: string; itemKey: string; quantity: number}
+
+/**
+ * Pledges that count toward `pledgedQty`: the demo pledges below, plus any real pledges already in
+ * the dataset (made through the app). Re-seeding must never drop a real donor's units from a line.
+ */
+async function activePledges(): Promise<ActivePledge[]> {
+  const demo: ActivePledge[] = PLEDGES.map(([id, needId, itemKey, quantity]) => ({
+    id,
+    needId,
+    itemKey,
+    quantity,
+  }))
+  const demoIds = new Set(demo.map((p) => p.id))
+  const existing = await client.fetch<ActivePledge[]>(
+    `*[_type == "pledge" && status != "cancelled" && !(_id in path("drafts.**"))]{
+      "id": _id, "needId": need._ref, itemKey, quantity
+    }`,
+  )
+  return [...demo, ...existing.filter((p) => !demoIds.has(p.id))]
+}
+
+let ACTIVE_PLEDGES: ActivePledge[] = []
+
 function pledgedQty(needId: string, lineKey: string): number {
-  return PLEDGES.filter(([, n, k]) => n === needId && k === lineKey).reduce((sum, p) => sum + p[3], 0)
+  return ACTIVE_PLEDGES.filter((p) => p.needId === needId && p.itemKey === lineKey).reduce(
+    (sum, p) => sum + p.quantity,
+    0,
+  )
 }
 
 function needDocument(n: DemoNeed) {
@@ -468,6 +496,13 @@ function needDocument(n: DemoNeed) {
 }
 
 async function main() {
+  ACTIVE_PLEDGES = await activePledges()
+  const demoPledgeIds = new Set(PLEDGES.map(([id]) => id))
+  const demoNeedIds = new Set(NEEDS.map((n) => n.id))
+  const realPledges = ACTIVE_PLEDGES.filter(
+    (p) => !demoPledgeIds.has(p.id) && demoNeedIds.has(p.needId),
+  ).length
+
   const tx = client.transaction()
 
   CATEGORIES.forEach((c, index) =>
@@ -515,7 +550,7 @@ async function main() {
 
   const result = await tx.commit()
   console.log(
-    `Seeded ${result.results.length} mutations: ${CATEGORIES.length} categories, ${ITEMS.length} supply items, policy (if missing), ${NEEDS.length} demo requests (${NEEDS.filter((n) => n.draft).length} drafts), ${PLEDGES.length} demo pledges.`,
+    `Seeded ${result.results.length} mutations: ${CATEGORIES.length} categories, ${ITEMS.length} supply items, policy (if missing), ${NEEDS.length} demo requests (${NEEDS.filter((n) => n.draft).length} drafts), ${PLEDGES.length} demo pledges. pledgedQty on demo requests also counts ${realPledges} real pledge(s) made through the app.`,
   )
 }
 

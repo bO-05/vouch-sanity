@@ -132,3 +132,78 @@ Wrap-ups now happen automatically after each verified milestone, or when I say s
 - Thresholds are placeholders (min confidence 0.7, max flag probability 0.35, proof match 0.7, coverage 0.8, receipt 0.6) until we calibrate on about 30 sample pleas. The easy plea came back at confidence 1.0, so calibration must use ambiguous pleas.
 
 **Next:** Day 2: feed and request page, pledges with live updates (Live Content API). The pledge route must update `pledgedQty` in the same transaction as the pledge document.
+
+---
+
+## Day 2: Sun, Sep 27. Pledges that can't oversell, and pages that update themselves
+
+**Goal:** Day 2 in PLAN: request page, pledges, live updates. Done a day ahead of the schedule.
+
+**Prompt:** "go". That was the whole prompt. The autopilot read STATUS and picked the next PLAN item.
+
+**What shipped:**
+- **Request page** `/requests/[id]`:
+  - The requester's story verbatim (with a `lang` attribute), the checklist with per-line and overall progress, and the pledges.
+  - A "Trail" section: the triage summary, every Jev decision with its probabilities, and human reviews.
+  - Demo requests say plainly that Jev never saw them.
+- **Drafts return 404, twice over.**
+  - Ids containing a dot (`drafts.*`, `versions.*`) are rejected before any query runs.
+  - The public client only reads the published perspective.
+  - The 404 page explains the trust gate.
+- **Pledges**: a Server Action calls `createPledge` in `web/src/lib/pledges.ts`.
+  - Code enforces the rules: the request is published and `open`, the line exists, the quantity is a whole number from 1 to what's still needed, and the display name has 1-40 characters and no contact details. Contact-looking names are refused, not just warned about.
+  - One transaction creates the pledge document and patches the request with `ifRevisionId(rev).setIfMissing({pledgedQty: 0}).inc({pledgedQty: n})` on that line.
+  - On a revision conflict (HTTP 409) nothing is written. The server re-reads, re-checks and retries with exponential backoff.
+  - Pledges for the same request queue up inside a server instance.
+- **Live updates**:
+  - `defineLive` from next-sanity, with `<SanityLive action="refresh" />` in the root layout.
+  - Pages that show counts render per request and read uncached from the Content Lake API.
+  - A "Live" badge in the header shows the real connection state. It changes only on the Live Content API's own welcome, reconnect, goaway and error events, so it can't claim "live" when it isn't.
+- **Seed fix:** re-seeding now recomputes `pledgedQty` from every active pledge, demo and real, so a reset never drops a real donor's units.
+- **CORS:** added origins for `localhost:3000` and `vouch-sanity.vercel.app`. The browser's Live Content API connection needs them.
+
+**Verified by** (production, https://vouch-sanity.vercel.app). I used a temporary published test request (`need-test-day2`) so the demo data stayed untouched, and deleted it afterwards.
+- **Two browsers, no reload.** Two separate browser sessions:
+  - Donor A pledged 2 × Dried beans through the form.
+  - Observer B, untouched, switched to "2/3 pledged" and listed "Ines pledged 2 × Dried beans". A `window` marker set before the pledge was still there, so the page was never reloaded.
+  - Measured on one clock: B updated about 1.4 s after A saw the confirmation.
+- **Sanity data:** that line's `pledgedQty` was 2, and there was exactly one pledge document with the right fields.
+- **Adversarial Server Action calls** (a direct POST with the action id, bypassing the form's dropdowns):
+  - Pledging 5 when 1 is left was refused: "Only 1 (2 lb bag) of Dried beans still needed…".
+  - Pledging on the draft-only `need-demo-09` was refused: "This request is not public".
+  - A cross-site `Origin` was rejected by Next's CSRF check.
+  - None of these left a document behind.
+- **Race on production:** 6 simultaneous pledges for 5 units. Exactly 5 were accepted and 1 got "fully pledged".
+- **Trust gate:** `/requests/need-demo-09` and `/requests/drafts.need-demo-09` return 404, and no draft title appears in any page.
+- **Locally (production build):**
+  - A phone number or email as the name, an unknown line, quantity 0 and an empty name were each refused with a specific message.
+  - Two local server instances raced 8 pledges for 3 units: exactly 3 were accepted, and one cross-instance revision conflict was logged and retried.
+- **Whole-dataset invariant query:** no checklist line whose `pledgedQty` differs from the sum of its active pledges, and no orphan pledges.
+- `npm run typecheck`, `npm run lint`, `npm run build:web` and `npm run build:studio` pass.
+
+**Prompts/approaches that worked:**
+- Testing the Server Action like an attacker would, as a plain HTTP POST with a `Next-Action` header and a JSON body, instead of only clicking the form. That's how the over-pledge refusal was proven: the form's dropdowns never offer more than what's left.
+- Firing truly parallel requests (async `HttpClient` tasks from one process) instead of sequential clicks.
+- Proving "no reload" with a marker on `window` in the observer browser, and a DOM MutationObserver to timestamp the moment the count changed.
+
+**What didn't (and the exact errors):**
+1. **The first concurrency run was correct but useless under load.**
+   - 8 simultaneous donors for 5 units: only 3 were accepted, and 5 got "Several people pledged at the same moment". The log showed 23 revision conflicts.
+   - The guard did its job (no overselling). But each pledge (read plus a transaction with `visibility: 'sync'`) takes hundreds of milliseconds, and the losers kept re-colliding because their short backoffs were too similar.
+   - Fix: queue pledges per request inside an instance, and back off exponentially with jitter.
+   - Re-run: 5 of 5 units pledged with 0 conflicts. Across two instances: 3 of 3, with 1 conflict retried.
+2. **The default `<SanityLive />` action doesn't fit a counter.** In production it calls `revalidateTag(tag, 'max')` and then `router.refresh()`. The Next 16 docs say a `'max'` revalidation serves the stale value on the next read and skips the re-render in the action response. A stale pledge count is wrong, so I didn't use Next's cache for these pages at all: per-request rendering, uncached reads and `action="refresh"`.
+3. **Production rejected the local action id** with `Server action not found`. Action ids differ per build; the production id came from the page's JS chunk.
+4. **`agent-browser` wasn't on PATH.** `npx -y agent-browser` works (0.38.1, with an engine warning). Each session's first `open` starts a daemon, and the shell tool reports `ChildProcess.kill` although the browser keeps running.
+5. **My first "no reload" marker was lost.** The observer page hard-reloaded while I rebuilt and restarted the local server (the build id changed, which is expected). I re-proved it on the final build and on production.
+
+**Where we got stuck and how we course-corrected:** Only the concurrency result. Clicking through the form would never have shown it; parallel requests did. Logging each revision conflict turned "it's probably fine" into evidence, both for the problem and for the fix.
+
+**Decisions:**
+- **A Server Action, not a route handler.** It takes a plain object rather than FormData, so a JSON body can test it.
+- **Per-request rendering beats the cache for pages with counters.** The tradeoff: every view and every live event re-reads Sanity, which is fine at demo scale.
+- **`useCdn: false`** on those reads, so read-your-own-writes doesn't depend on CDN invalidation timing.
+- **Pledges are public with a display name only.**
+- **Known gaps,** now in PLAN: no rate limiting (one visitor could pledge every demo line), and a demo reset script is needed before judging.
+
+**Next:** Day 3: the submit flow (speech and text), catalog match, triage, the draft/publish gate, and stored decisions. Calibrate thresholds on ambiguous pleas.

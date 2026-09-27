@@ -18,3 +18,39 @@ export const STAGE_LABELS: Record<string, string> = {
   fulfilled: 'Fulfilled',
   rejected: 'Rejected',
 }
+
+export const LANGUAGE_LABELS: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  uk: 'Ukrainian',
+  fr: 'French',
+  pt: 'Portuguese',
+  ar: 'Arabic',
+  tl: 'Tagalog',
+  id: 'Indonesian',
+  sw: 'Swahili',
+  other: 'Other',
+}
+
+export const DECISION_KIND_LABELS: Record<string, string> = {
+  catalog_match: 'Catalog match',
+  triage: 'Triage',
+  duplicate: 'Duplicate check',
+  proof_match: 'Proof match',
+  health_check: 'Health check',
+}
+
+export const REVIEW_ACTION_LABELS: Record<string, string> = {
+  approve: 'Approved',
+  send_back: 'Sent back',
+  reject: 'Rejected',
+}
+
+export const PLEDGE_STATUS_LABELS: Record<string, string> = {
+  pledged: 'Pledged',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+}
+
+/** Only requests in this stage accept new pledges. */
+export const PLEDGEABLE_STAGE = 'open'

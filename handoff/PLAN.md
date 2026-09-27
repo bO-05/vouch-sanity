@@ -69,12 +69,12 @@ intake → triage (effect `jev-triage`) → [review, only if flagged] → open (
 ## Schedule and checklist (plan made Sat Sep 26)
 
 - [x] Day 1 (Sep 26-27): GitHub repo; scaffold `web/` + `studio/`; Sanity project + public dataset; schemas; seed (categories, ~40 supply items, policy, ~10 needs); Studio deployed; skeleton `web/` deployed to Vercel; first real Jev call from a server route; fill AGENTS.md Commands. *(Verified Sep 26: project `o8hcpsct`, Studio vouch-aid.sanity.studio, web vouch-sanity.vercel.app; anonymous GROQ shows 8 published / 0 drafts; prod Jev call recorded as a decision.)*
-- [ ] Day 2 (Sep 28): feed + request page + pledges (live updates). The pledge updates `pledgedQty` in the same transaction as the pledge doc (`ifRevisionId`); drafts return 404.
-- [ ] Day 3 (Sep 29): submit flow (speech + text) → catalog match → triage → draft/publish gate → decisions stored.
+- [x] Day 2 (Sep 28, done Sep 27): feed + request page + pledges (live updates). The pledge updates `pledgedQty` in the same transaction as the pledge doc (`ifRevisionId`); drafts return 404. *(Verified Sep 27 on production: two browsers, B updated ~1.4 s after A's pledge with no reload; `pledgedQty` and the pledge doc correct in Sanity; direct Server Action POSTs refused over-pledging, a draft-only request and a cross-site Origin; 6 simultaneous pledges for 5 units → exactly 5 accepted; drafts 404.)*
+- [ ] Day 3 (Sep 29): submit flow (speech + text) → catalog match → triage → draft/publish gate → decisions stored. Also decide how a requester returns to their draft (needed for send-back), and check the trail's decision rendering on real data.
 - [ ] Day 4 (Sep 30): Workflows engine lifecycle (timebox) + verifier desk.
 - [ ] Day 5 (Oct 1): proof flow (Tesseract.js + editable lines + Jev match) + certificate.
-- [ ] Day 6 (Oct 2): polish, policy-as-content, empty/error states; COULD items only if all MUST are green.
-- [ ] Day 7 (Oct 3): full production run of every DoD step; seed demo data; demo video + screenshots.
+- [ ] Day 6 (Oct 2): polish, policy-as-content, empty/error states; a simple per-IP rate limit on pledges and submissions; COULD items only if all MUST are green.
+- [ ] Day 7 (Oct 3): full production run of every DoD step; demo reset script (delete non-demo pledges, proofs and test docs, then `npm run seed`) and seed demo data; demo video + screenshots.
 - [ ] Day 8 (Oct 4): DEV post from `handoff/BUILD_LOG.md` (Path Two template); publish by noon PDT.
 
 ## Risks → fallbacks
