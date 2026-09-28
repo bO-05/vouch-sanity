@@ -1,17 +1,21 @@
 'use client'
 
 import {useCallback, useEffect, useRef, useState, useSyncExternalStore} from 'react'
+import {joinTranscripts, type Utterances} from './transcript'
 
 /**
  * Voice input through the browser's own speech recognition (Web Speech API).
  * Chrome, Edge and Safari support it; Firefox doesn't, so typing always works too.
- * The transcript lands in the story box, where the requester reviews it before submitting.
- * Vouch never rewrites it.
+ * The words appear in the story box as they're recognized, and the requester reviews them before
+ * submitting. Vouch never rewrites them.
+ *
+ * Android: Chrome's continuous mode re-sends results there (see transcript.ts), so each tap records
+ * one utterance and stops at a pause; tapping again adds more.
  */
 
 type Alternative = {transcript: string}
 type Result = {isFinal: boolean; length: number; [index: number]: Alternative}
-type ResultEvent = {resultIndex: number; results: {length: number; [index: number]: Result}}
+type ResultEvent = {results: {length: number; [index: number]: Result}}
 type ErrorEvent = {error: string}
 
 interface Recognition {
@@ -35,6 +39,10 @@ function recognitionConstructor(): RecognitionConstructor | null {
     webkitSpeechRecognition?: RecognitionConstructor
   }
   return scope.SpeechRecognition ?? scope.webkitSpeechRecognition ?? null
+}
+
+function isAndroid(): boolean {
+  return /android/i.test(navigator.userAgent)
 }
 
 /** BCP 47 locales for the languages Vouch offers. */
@@ -72,21 +80,25 @@ function describeError(code: string): string {
 
 const noSubscription = () => () => {}
 
-export function useDictation(language: string, onFinalText: (text: string) => void) {
+/**
+ * `onText` gets the whole text of the current recording session (final and interim words) every time
+ * it changes. The caller shows it after whatever was in the box when the session started.
+ */
+export function useDictation(language: string, onText: (sessionText: string) => void) {
   const supported = useSyncExternalStore(
     noSubscription,
     () => recognitionConstructor() !== null,
     () => false,
   )
+  const stopsAtPause = useSyncExternalStore(noSubscription, isAndroid, () => false)
   const [listening, setListening] = useState(false)
-  const [interim, setInterim] = useState('')
   const [error, setError] = useState<string | null>(null)
   const recognition = useRef<Recognition | null>(null)
-  const onFinal = useRef(onFinalText)
+  const onTextRef = useRef(onText)
 
   useEffect(() => {
-    onFinal.current = onFinalText
-  }, [onFinalText])
+    onTextRef.current = onText
+  }, [onText])
 
   useEffect(() => () => recognition.current?.abort(), [])
 
@@ -97,30 +109,28 @@ export function useDictation(language: string, onFinalText: (text: string) => vo
     if (!Constructor) return
     recognition.current?.abort()
     const instance = new Constructor()
+    const utterances: Utterances = isAndroid() ? 'one' : 'many'
     instance.lang = SPEECH_LOCALES[language] ?? navigator.language
-    instance.continuous = true
+    instance.continuous = utterances === 'many'
     instance.interimResults = true
     instance.onresult = (event) => {
-      let pending = ''
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i]
-        const text = result[0]?.transcript ?? ''
-        if (result.isFinal) {
-          if (text.trim()) onFinal.current(text.trim())
-        } else {
-          pending += text
-        }
-      }
-      setInterim(pending)
+      if (recognition.current !== instance) return
+      // Rebuilt from every result of the session, not just the new ones, so re-sent results replace.
+      const transcripts: string[] = []
+      for (let i = 0; i < event.results.length; i++) transcripts.push(event.results[i]?.[0]?.transcript ?? '')
+      const text = joinTranscripts(transcripts, utterances)
+      if (text) onTextRef.current(text)
     }
     instance.onerror = (event) => {
+      if (recognition.current !== instance) return
       const message = describeError(event.error)
       if (message) setError(message)
     }
     instance.onend = () => {
+      // An aborted older session must not switch off the new one.
+      if (recognition.current !== instance) return
+      recognition.current = null
       setListening(false)
-      setInterim('')
-      if (recognition.current === instance) recognition.current = null
     }
     setError(null)
     try {
@@ -132,5 +142,5 @@ export function useDictation(language: string, onFinalText: (text: string) => vo
     }
   }, [language])
 
-  return {supported, listening, interim, error, start, stop}
+  return {supported, stopsAtPause, listening, error, start, stop}
 }

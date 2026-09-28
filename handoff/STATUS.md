@@ -31,7 +31,7 @@ A brand-new session should be able to continue from this file alone. It's rewrit
 
 Day 7 in `handoff/PLAN.md`.
 
-1. Ask the user once more about "Dictate instead" on /ask (see the steps under Blockers). If it works, tick Day 3 in PLAN and note it in BUILD_LOG.
+1. Ask the user for the dictation re-test on their phone (see Blockers; the doubling bug is fixed and deployed). If the sentence appears once, tick Day 3 in PLAN and note it in BUILD_LOG.
 2. **Write the demo reset script** (`web/scripts/demo-reset.ts`, with a `--dry-run` flag). It must:
    - Delete the non-demo pledges, proofs, `receipt-scan.*`, `certificate-*`, the reviews, the non-demo requests (published and drafts), and the `ratelimit.*` counters.
    - Delete the `prod` workflow instances.
@@ -47,7 +47,7 @@ Day 7 in `handoff/PLAN.md`.
 | Thing | State |
 |---|---|
 | GitHub | `gh` as `bO-05`. Private repo https://github.com/bO-05/vouch-sanity (public only at submission, with the user's OK) |
-| Vercel | `bo-05`, team `bo05s-projects`, project `vouch-sanity` (`prj_1URHcrG1AU3k4lPHiBSY57hzF2Il`), Root Directory `web`, Node 22.x, function region `cdg1`. Not git-connected: `npx -y vercel@latest deploy --prod --yes` from the repo root. Last prod deploy: `dpl_4mULSinxjePqcWo9iHd4vgC4JeYn` (Day 6 final) |
+| Vercel | `bo-05`, team `bo05s-projects`, project `vouch-sanity` (`prj_1URHcrG1AU3k4lPHiBSY57hzF2Il`), Root Directory `web`, Node 22.x, function region `cdg1`. Not git-connected: `npx -y vercel@latest deploy --prod --yes` from the repo root. Last prod deploy: `dpl_9fpmDXhK5pvdfKqqm24pagyxmzNU` (Day 6 + the dictation fix) |
 | Sanity | CLI logged in (Google). Org `oosvo2181`. Project `o8hcpsct` (Content Lake shard `gcp-eu-w1`, Belgium). Token "Vouch web server (Next.js)" (editor). CORS: `http://localhost:3333`, `http://localhost:3000`, `https://vouch-sanity.vercel.app`. Workflows: definition `prod.need-lifecycle.v1`, tag `prod`. The Studio wasn't redeployed on Day 6 (no schema change; `rateLimit` docs are private and have no schema type) |
 | TypeSafe | Key in `web/.env.local` and Vercel env. `jev-latest` → `jev-1.13.0`: about 250-340 ms per call from cdg1 |
 | Tooling | Node 22.22.0, npm 10.5.1, Windows PowerShell 5.1. Next 16.3.6, React 19.3.0, Studio 6.16.0, next-sanity 13.3.4, @sanity/client 8.7.0, @sanity/workflow-engine 0.35.0, @typesafe-ai/sdk 0.6.0, tesseract.js 7.0.0 (exact). `npx -y agent-browser` 0.38.1. codebase-memory project `vouch-sanity` re-indexed on Day 6 |
@@ -82,11 +82,14 @@ Day 7 in `handoff/PLAN.md`.
 
 ## Blockers / open questions
 
-- **Waiting on the user: the dictation check** (the only open item of Day 3). Steps for the user:
-  1. Open https://vouch-sanity.vercel.app/ask in Chrome on a laptop or an Android phone.
-  2. Click "Dictate instead", and allow the microphone when Chrome asks.
-  3. Say one sentence, e.g. "We need rice and milk for the week", then click it again to stop.
-  4. Report whether the words appeared in the "What's going on" box. Nothing needs to be submitted.
+- **Waiting on the user: the dictation re-test** (the only open item of Day 3).
+  - First try (Sep 28, Android phone): recognition worked but every word repeated ("we we we need…").
+  - Fixed in `web/src/app/ask/transcript.ts` and deployed as `dpl_9fpmDXhK5pvdfKqqm24pagyxmzNU`. Verified with `web/scripts/check-dictation.ts` (11/11) and a scripted fake recognizer on production (Pixel 7 and desktop).
+  - Steps for the user:
+    1. Open https://vouch-sanity.vercel.app/ask on the same phone and reload the page.
+    2. Tap "Dictate instead" and say "We need rice and milk for the week". On Android it stops by itself at the pause.
+    3. Report whether the sentence appears once. Nothing needs to be submitted.
+  - If it does, tick Day 3 in PLAN and note it in BUILD_LOG.
 - **Day 7 reset script:** see "Exact next action" 2.
 - **Rate-limit caveats (for the post):**
   - Fixed windows: a burst across a boundary can reach twice a limit.

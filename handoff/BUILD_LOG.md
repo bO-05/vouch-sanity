@@ -540,3 +540,34 @@ Wrap-ups now happen automatically after each verified milestone, or when I say s
 - **Limits are code constants, not policy content:** they must keep working when the policy doesn't load, and a Studio edit shouldn't be able to switch abuse protection off.
 
 **Next:** Day 7: the demo reset script and a full production run of every DoD step, then the demo video and screenshots. The dictation check still waits for the user.
+
+## Day 3's last check, Mon Sep 28: dictation on a real phone repeated every word
+
+**Goal:** the one open item of Day 3: dictation tested by a person with a microphone.
+
+**What happened:**
+- The user tried "Dictate instead" on an Android phone (Chrome, opened from an app) and sent a screenshot.
+- Recognition worked, but the box read "we we we need we need we need rice we need rice we need rice and we need rice and milk …".
+- Cause: Chrome on Android re-sends the whole utterance so far as each new result and marks them final. The hook appended every final result, which is the pattern of Google's own Web Speech demo.
+- The same quirk is visible in react-speech-recognition, which works around it on Android: it ignores "final" results with confidence 0, skips a repeated final-only event, and debounces finals by 250 ms.
+
+**What shipped:**
+- `web/src/app/ask/transcript.ts` (pure): on every event, the session's text is rebuilt from **all** of its results, and a result that re-sends the previous one replaces it instead of being appended. It works on content, not on Android's event metadata, so it covers every plausible event shape:
+  - A growing list of cumulative results.
+  - One result replaced in place.
+  - A duplicated final.
+  - A revised word.
+- **Android:** one utterance per tap (`continuous = false`); it stops at a pause, and tapping again adds more. The hint says so on phones.
+- **Desktop:** continuous as before.
+- **The words appear live in the box,** after whatever was typed before. The box is read-only while listening, so nothing typed can be overwritten.
+- **Nothing is reworded:** every word shown is a word the recognizer returned.
+
+**Verified by:**
+- `web/scripts/check-dictation.ts`: 11/11. The first check proves the reconstruction: appending the 12 reconstructed results gives the phone's text exactly. The new code gives "we need rice and milk for the week" and never shows a repeat at any step.
+- **Production** (`dpl_9fpmDXhK5pvdfKqqm24pagyxmzNU`): agent-browser replaced `SpeechRecognition` with a scripted fake and dictated after "Hello." was typed.
+  - **As a Pixel 7:** `continuous: false`. After each of the 12 events the box read "Hello. we" … "Hello. we need rice and milk for the week", with no repeat, read-only while listening and editable after.
+  - **As desktop Chrome:** `continuous: true`, with separate phrases joined into the same sentence.
+- `npm run typecheck` and `npm run lint` pass.
+- **Still needed:** the user's real phone. Day 3 stays unticked until they confirm.
+
+**Lesson for the post:** the only person who could test the microphone found the bug in 30 seconds. A demo path that "works on my machine" isn't verified.

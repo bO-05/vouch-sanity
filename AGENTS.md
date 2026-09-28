@@ -96,6 +96,7 @@ Story hook for the post: "A mutual-aid app whose AI can't write a single sentenc
   - `web/src/lib/triage.ts` and `web/src/lib/catalog-match.ts`: pure modules (no runtime imports) with the question builders and the code gates. They're shared with `web/scripts/`.
   - `web/src/lib/intake-rules.ts`: form limits and the contact check, shared by the browser and the server.
   - `web/src/lib/status.ts`: the private status lookup (SHA-256 of the `/status#token`).
+  - `web/src/app/ask/transcript.ts`: pure. It turns a speech session's results into one transcript: rebuilt from all results on every event, and re-sent results replace (Chrome on Android re-sends the utterance so far). Android uses one utterance per tap.
   - `web/src/app/ask/` (the form, dictation hook, actions), `web/src/app/status/` (the private status page: `StatusTracker` with live lifecycle stages, resubmit form) and `web/src/app/desk/` (the verifier desk).
   - Shared UI in `web/src/components/`: `checklist-editor.tsx`, `form.tsx`, `lifecycle-steps.tsx`, `triage-notes.tsx`.
   - `web/scripts/calibrate-triage.ts` + `calibration-pleas.ts`: threshold calibration on synthetic pleas. Results go to `handoff/calibration/`.
@@ -120,6 +121,7 @@ Run from the repo root (npm workspaces `web` and `studio`) unless noted.
 | Query drafts | `... documents query "<groq>" --api-version v2021-06-07` | API versions 2025-02-19 and later default to the `published` perspective and hide drafts even with your login. Use the old version (raw perspective) whenever a check must see drafts |
 | Calibrate triage | `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file=.env.local scripts/calibrate-triage.ts` (from `web/`) | Real Jev calls on the synthetic pleas, using the live policy. Prints a table and a threshold grid, and writes `handoff/calibration/triage-*.json`. Nothing is written to Sanity |
 | Calibrate proof match | `... scripts/calibrate-proof.ts` (from `web/`) | Real Jev calls on 11 synthetic receipts against the demo checklists (live policy). Writes `handoff/calibration/proof-*.json`. Nothing is written to Sanity |
+| Check dictation | `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-dictation.ts` (from `web/`) | Replays speech-result sequences (incl. the real Android one) through `transcript.ts`. No microphone needed |
 | Sample receipts | `node scripts/make-sample-receipts.ts` (from `web/`) | Renders `web/public/samples/*.png` from SVG with `sharp` (hoisted at the root). Made-up receipts that cover the demo checklists, plus one that matches nothing |
 | Browser checks | `npx -y agent-browser --session <name> <cmd>` | Not on PATH. The first `open` in a session starts a daemon, and the shell tool reports `ChildProcess.kill`, but the session keeps working. Use two sessions for live-update checks |
 | Call a Server Action directly | See RESEARCH §2.7 | For adversarial tests (over-pledge, drafts, races). Action ids differ per build. In production, scrape them from `/_next/static/immutable/chunks/*.js` (pattern `createServerReference)("<42 hex>",…,"<name>Action")`). Every call counts against the rate limits |

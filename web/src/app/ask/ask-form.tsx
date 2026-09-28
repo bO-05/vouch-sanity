@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import {useCallback, useId, useState, type ReactNode} from 'react'
+import {useCallback, useId, useRef, useState, type ReactNode} from 'react'
 import {ChecklistEditor} from '@/components/checklist-editor'
 import {Field, inputClass, primaryButton, secondaryButton} from '@/components/form'
 import type {CatalogItem} from '@/lib/catalog-match'
@@ -65,13 +65,23 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
     if (problem?.field === name) setProblem(null)
   }
 
-  const appendDictation = useCallback((text: string) => {
+  // Dictation fills the story box live: each recording session's text goes after what was in the box
+  // when it started, and is replaced (never appended) as the recognizer updates it. The box is
+  // read-only while listening, so nothing typed can be overwritten.
+  const dictationBase = useRef('')
+  const showDictation = useCallback((sessionText: string) => {
+    const base = dictationBase.current
     setFields((current) => ({
       ...current,
-      story: (current.story.trimEnd() ? `${current.story.trimEnd()} ` : '') + text,
+      story: (base ? `${base} ${sessionText}` : sessionText).slice(0, ASK_LIMITS.story.max),
     }))
+    setProblem((current) => (current?.field === 'story' ? null : current))
   }, [])
-  const dictation = useDictation(fields.language, appendDictation)
+  const dictation = useDictation(fields.language, showDictation)
+  const startDictation = () => {
+    dictationBase.current = fields.story.trimEnd()
+    dictation.start()
+  }
 
   const words = `${fields.title}\n${fields.story}`
   const errorFor = (name: keyof AskFields) => (problem?.field === name ? problem.message : null)
@@ -210,6 +220,7 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
             id={`${id}-story`}
             value={fields.story}
             onChange={(event) => set('story')(event.target.value)}
+            readOnly={dictation.listening}
             rows={6}
             maxLength={ASK_LIMITS.story.max}
             lang={fields.language === 'other' ? undefined : fields.language}
@@ -220,7 +231,7 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
             {dictation.supported ? (
               <button
                 type="button"
-                onClick={dictation.listening ? dictation.stop : dictation.start}
+                onClick={dictation.listening ? dictation.stop : startDictation}
                 aria-pressed={dictation.listening}
                 className={`${secondaryButton} flex items-center gap-2 py-1.5`}
               >
@@ -233,11 +244,13 @@ export function AskForm({catalog, categoryOrder}: {catalog: CatalogItem[]; categ
             ) : null}
             <p className="text-xs text-muted" aria-live="polite">
               {dictation.listening
-                ? dictation.interim
-                  ? `Hearing: “${dictation.interim}”`
-                  : `Listening in ${LANGUAGE_LABELS[fields.language] ?? 'your language'}… check the text before you submit.`
+                ? `Listening in ${LANGUAGE_LABELS[fields.language] ?? 'your language'}… your words appear in the box. ${
+                    dictation.stopsAtPause ? 'It stops when you pause; tap again to add more.' : 'Stop dictating to edit them.'
+                  }`
                 : dictation.supported
-                  ? "Voice input uses your browser's speech recognition (in Chrome, the audio goes to Google to be transcribed)."
+                  ? `Voice input uses your browser's speech recognition (in Chrome, the audio goes to Google to be transcribed).${
+                      dictation.stopsAtPause ? ' On this phone it stops when you pause: tap again to add more.' : ''
+                    }`
                   : 'This browser has no speech recognition, so please type (Chrome, Edge and Safari support dictation).'}
             </p>
           </div>
