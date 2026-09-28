@@ -77,7 +77,10 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
   - **Gate in code:** any flag at or above its threshold (danger 0.3, others 0.5) → volunteer (danger → emergency resources too); "unclear" category → volunteer; non-English or language confidence < 0.7 → bilingual volunteer.
   - **Not gated:** urgency never gates (it only orders the feed). A category below 0.7 confidence is left empty rather than blocking.
 - Duplicates: GROQ finds recent needs in the same city/category → Noul "same household, same need".
-- Proof match: Noul per (receipt line × checklist item); code assigns matches greedily and computes coverage; plus a "this text is a store receipt" Noul.
+- Proof match: one Choice per receipt line (which checklist item it bought, "another product", "not a product"), plus a "this text is a store receipt" Noul.
+  - **Code counts the units** (Sep 28): quantities printed on the line or on a quantity-only line below it ("3 @ 18.99", "3 x 18.99", "QTY 3", "x3", or proven by the arithmetic). A line without one counts as 1.
+  - A quantity counts only if OCR read the same one in the photo, and quantity × unit price is the line's total.
+  - Coverage = units shown / units asked for. The policy needs 1 (everything, in full).
 
 ## Schedule and checklist (plan made Sat Sep 26)
 
@@ -110,7 +113,7 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
     - The certificate hash recomputes in the browser; a tampered payload shows a mismatch; Node's SHA-256 of the stored payload is equal.
     - Anonymous reads see 0 receipt scans, 0 reviews and 0 drafts. The pledge invariant holds.
   - Calibration on 11 synthetic receipts: 11/11 (`web/scripts/calibrate-proof.ts`).
-  - Known limit: one receipt must cover the whole checklist; quantities aren't checked.
+  - Known limit: one receipt must cover the whole checklist. *(Quantities weren't checked until Sep 28; since then code counts them, see Day 7.)*
 - [x] Day 6 (Oct 2, done Sep 28): polish, policy-as-content, empty/error states, per-network rate limits.
   - *Verified Sep 28 on production (`dpl_4mULSinxjePqcWo9iHd4vgC4JeYn`):*
     - **Rate limits,** counted in private Sanity documents (`web/src/lib/rate-limit.ts`) and exceeded on purpose with invalid inputs:
@@ -133,7 +136,16 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
     - Receipts: automatic (certificate +10.6 s), declined then automatic, and volunteer-accepted. Certificate hash checked in the browser and in PowerShell.
     - Trails, the public dataset and the Studio checked.
     - This run's 9 documents are labeled demo (`web/scripts/label-demo.ts`).
-  - [x] Screenshots: 14 in `handoff/media/` (the private token hidden).
+  - [x] Screenshots: 14 in `handoff/media/` (the private token hidden), plus 4 of the quantity check (14-17).
+  - [x] **Found by the user:** "fulfilled" while the checklist said "2 still needed". *(Fixed and verified Sep 28 on production, `dpl_9DBzKHKMgv774T6SHAP8dSYQ7xrT`; details in BUILD_LOG "Day 7 (part 2)".)*
+    - Now code counts the units a receipt shows. Jev never counts.
+    - Coverage means units, and the policy's `proofMinCoverage` is 1: automatic "fulfilled" means everything, in full.
+    - A volunteer who accepts a short receipt must write a public note.
+    - A fulfilled checklist shows "N/M on the receipt". Pledges are shown as optional promises.
+    - Checks:
+      - Offline: 58/58 (`web/scripts/check-quantities.ts`).
+      - Real Jev: 17/17 receipts.
+      - Production: pharmacy → demo-07 automatic (3/3, 2/2, certificate v2), a short receipt → desk → accepting without a note refused → accepted with a note, household → demo-05 automatic.
   - [ ] Demo video (agent-browser `record`).
   - Optional polish: label the times. Server-rendered ones (desk, trails) are UTC, while the status page uses local time.
 - [ ] Day 8 (Oct 4): DEV post from `handoff/BUILD_LOG.md` (Path Two template); publish by noon PDT.

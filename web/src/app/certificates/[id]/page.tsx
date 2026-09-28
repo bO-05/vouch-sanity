@@ -17,7 +17,13 @@ export const metadata: Metadata = {
 type Payload = {
   checklist?: Array<{item?: string; quantity?: number; unit?: string | null}>
   pledges?: Array<{donor?: string; item?: string; quantity?: number}>
-  receipt?: {uploadedBy?: string | null; coverage?: number | null; matches?: Array<{item?: string; receiptLine?: string | null; probability?: number}>}
+  receipt?: {
+    uploadedBy?: string | null
+    coverage?: number | null
+    matches?: Array<{item?: string; receiptLine?: string | null; probability?: number; quantity?: number; quantityLine?: string | null}>
+    /** Version 2: what the receipt shows per checklist line. */
+    quantities?: Array<{item?: string; needed?: number; shown?: number}>
+  }
   verifiedBy?: {kind?: string; reviewer?: string | null; model?: string | null}
 }
 
@@ -79,17 +85,40 @@ export default async function CertificatePage({params}: PageProps<'/certificates
               {(data.receipt?.matches ?? []).map((match, index) => (
                 <li key={index}>
                   <span className="font-medium">{match.item}</span> ← <span className="font-mono text-xs">{match.receiptLine}</span>
+                  {typeof match.quantity === 'number' ? (
+                    <span>
+                      {' '}
+                      · {match.quantity} {match.quantity === 1 ? 'unit' : 'units'}
+                      {match.quantityLine ? (
+                        <span className="text-muted">
+                          {' '}
+                          (from <span className="font-mono text-xs">{match.quantityLine}</span>)
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : null}
                   {typeof match.probability === 'number' ? <span className="text-muted"> (p = {match.probability.toFixed(2)})</span> : null}
                 </li>
               ))}
             </ul>
+            {data.receipt?.quantities ? (
+              <ul className="flex flex-col gap-0.5 text-muted">
+                {data.receipt.quantities.map((entry, index) => (
+                  <li key={index}>
+                    {entry.item}: {Math.min(entry.shown ?? 0, entry.needed ?? 0)} of {entry.needed} on the receipt
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <p className="text-muted">
-              Coverage {typeof data.receipt?.coverage === 'number' ? `${Math.round(data.receipt.coverage * 100)}%` : 'unknown'} of the
-              checklist · receipt uploaded by {data.receipt?.uploadedBy ?? 'someone'}
+              {data.receipt?.quantities
+                ? `The receipt shows ${Math.round((data.receipt.coverage ?? 0) * 100)}% of the checklist's units`
+                : `Coverage ${typeof data.receipt?.coverage === 'number' ? `${Math.round(data.receipt.coverage * 100)}%` : 'unknown'} of the checklist items (checked before Vouch counted quantities)`}{' '}
+              · receipt uploaded by {data.receipt?.uploadedBy ?? 'someone'}
             </p>
           </div>
           <div className="flex flex-col gap-2 text-sm">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted">Pledged by</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted">Pledged (optional promises)</h2>
             {(data.pledges ?? []).length === 0 ? (
               <p className="text-muted">No pledges were recorded; the receipt alone closed the loop.</p>
             ) : (

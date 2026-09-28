@@ -66,7 +66,7 @@ export const pledge = defineType({
 /**
  * A receipt showing a request was fulfilled.
  * OCR runs in the uploader's browser (Tesseract.js); the uploader corrects the lines;
- * Jev picks which checklist item each line bought; code assigns matches, computes coverage and gates.
+ * Jev picks which checklist item each line bought; code counts the units, computes coverage and gates.
  *
  * This document is public (the dataset is). The photo and the raw OCR text are NOT stored here:
  * they live in a private `receiptScan` document that only the server (and so the verifier desk) reads.
@@ -120,10 +120,19 @@ export const proof = defineType({
       readOnly: true,
     }),
     defineField({
+      name: 'quantities',
+      title: 'Units on the receipt',
+      type: 'array',
+      of: [defineArrayMember({type: 'proofQuantity'})],
+      readOnly: true,
+      description: 'Per checklist line: units asked for and units the receipt shows, counted by code. Empty on receipts checked before Sep 28, 2026.',
+    }),
+    defineField({
       name: 'coverage',
       type: 'number',
       readOnly: true,
-      description: 'Share of checklist lines matched to a receipt line, computed by code.',
+      description:
+        "Share of the checklist's units the receipt shows (each line up to its quantity), computed by code. Receipts checked before Sep 28, 2026: share of checklist lines matched.",
       validation: (rule) => rule.min(0).max(1),
     }),
     defineField({

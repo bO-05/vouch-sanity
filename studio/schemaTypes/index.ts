@@ -7,6 +7,7 @@ import {
   needItem,
   policyThresholds,
   proofMatch,
+  proofQuantity,
   receiptLine,
   triageFlag,
   triageSummary,
@@ -31,6 +32,7 @@ export const schemaTypes = [
   triageSummary,
   receiptLine,
   proofMatch,
+  proofQuantity,
   flagQuestion,
   policyThresholds,
 ]

@@ -20,9 +20,19 @@ export const FEED_QUERY = defineQuery(`
         "pledged": coalesce(pledgedQty, 0),
         "name": supplyItem->name,
         "unit": supplyItem->unit
-      }
+      },
+      "receipt": select(stage == "fulfilled" => *[_type == "proof" && need._ref == ^._id && verdict in ["auto_verified", "verified"]]
+        | order(submittedAt desc)[0]{verdict, "quantities": quantities[]{itemKey, needed, shown}, "matched": matches[].itemKey})
     }
 `)
+
+/** The receipt that fulfilled a request: what it shows per checklist line. */
+export type FulfillingReceipt = {
+  verdict: string | null
+  /** Null for receipts checked before Vouch read quantities (Sep 28, 2026). */
+  quantities: Array<{itemKey: string; needed: number; shown: number}> | null
+  matched: string[] | null
+}
 
 export type FeedItem = {
   _key: string
@@ -44,6 +54,7 @@ export type FeedNeed = {
   publishedAt: string | null
   category: string | null
   items: FeedItem[] | null
+  receipt: FulfillingReceipt | null
 }
 
 /**
@@ -80,7 +91,8 @@ export const NEED_QUERY = defineQuery(`
       | order(createdAt asc) {_id, kind, model, outcome, error, latencyMs, createdAt, answers},
     "proofs": *[_type == "proof" && need._ref == ^._id] | order(submittedAt desc) {
       _id, verdict, coverage, reasons, uploaderDisplayName, submittedAt,
-      "lines": lines[]{text}, "matches": matches[]{lineIndex, itemKey, probability}
+      "lines": lines[]{text}, "matches": matches[]{lineIndex, itemKey, probability, quantity, quantityLine},
+      "quantities": quantities[]{itemKey, needed, shown}
     },
     "certificate": *[_type == "certificate" && need._ref == ^._id][0]{_id, sha256, issuedAt}
   }
@@ -94,7 +106,9 @@ export type NeedProof = {
   uploaderDisplayName: string | null
   submittedAt: string | null
   lines: Array<{text: string}> | null
-  matches: Array<{lineIndex: number; itemKey: string; probability: number}> | null
+  matches: Array<{lineIndex: number; itemKey: string; probability: number; quantity: number | null; quantityLine: number | null}> | null
+  /** Null for receipts checked before Vouch read quantities (Sep 28, 2026). */
+  quantities: Array<{itemKey: string; needed: number; shown: number}> | null
 }
 
 export type NeedPledge = {

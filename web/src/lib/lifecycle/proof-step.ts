@@ -46,7 +46,7 @@ type ProofForMatch = {
   needId: string | null
   verdict: string | null
   decisionId: string | null
-  lines: Array<{text: string; amount: number | null; ocrSimilarity: number | null}> | null
+  lines: Array<{text: string; amount: number | null; ocrSimilarity: number | null; ocrLine: number | null; ocrQuantity: number | null}> | null
 }
 
 const NEED_FOR_PROOF = `*[_type == "need" && _id == $id][0]{
@@ -55,7 +55,7 @@ const NEED_FOR_PROOF = `*[_type == "need" && _id == $id][0]{
 }`
 
 const PROOF_FOR_MATCH = `*[_type == "proof" && _id == $id][0]{
-  _id, _rev, "needId": need._ref, verdict, "decisionId": decision._ref, lines[]{text, amount, ocrSimilarity}
+  _id, _rev, "needId": need._ref, verdict, "decisionId": decision._ref, lines[]{text, amount, ocrSimilarity, ocrLine, ocrQuantity}
 }`
 
 function checklistFor(need: NeedForProof): ProofChecklistLine[] {
@@ -101,7 +101,13 @@ export async function runProofMatch(needId: string, proofId: string): Promise<Pr
         ...(verdict
           ? {
               coverage: verdict.coverage,
-              matches: verdict.matches.map((match) => ({_key: `m${match.lineIndex}-${match.itemKey}`, _type: 'proofMatch', ...match})),
+              matches: verdict.matches.map(({quantityLine, ...match}) => ({
+                _key: `m${match.lineIndex}-${match.itemKey}`,
+                _type: 'proofMatch',
+                ...match,
+                ...(quantityLine !== null ? {quantityLine} : {}),
+              })),
+              quantities: verdict.quantities.map((entry) => ({_key: entry.itemKey, _type: 'proofQuantity', ...entry})),
               ...(verdict.receiptProbability !== null ? {receiptProbability: verdict.receiptProbability} : {}),
             }
           : {}),
@@ -124,6 +130,8 @@ export async function runProofMatch(needId: string, proofId: string): Promise<Pr
     text: line.text,
     amount: typeof line.amount === 'number' ? line.amount : null,
     ocrSimilarity: typeof line.ocrSimilarity === 'number' ? line.ocrSimilarity : 0,
+    ocrLine: typeof line.ocrLine === 'number' ? line.ocrLine : null,
+    ocrQuantity: typeof line.ocrQuantity === 'number' ? line.ocrQuantity : null,
   }))
   if (lines.length === 0) return write(null, ['The receipt has no lines to check, so a volunteer verifier will look at the photo.'], null)
 
@@ -165,7 +173,8 @@ type CertificateSource = {
     submittedAt: string | null
     imageSha256: string | null
     lines: Array<{text: string}> | null
-    matches: Array<{lineIndex: number; itemKey: string; probability: number}> | null
+    matches: Array<{lineIndex: number; itemKey: string; probability: number; quantity: number | null; quantityLine: number | null}> | null
+    quantities: Array<{itemKey: string; needed: number; shown: number}> | null
     decision: {_id: string; model: string | null} | null
   } | null
   review: {reviewerName: string; createdAt: string | null} | null
@@ -179,7 +188,8 @@ const CERTIFICATE_SOURCE = `{
   },
   "proof": *[_type == "proof" && _id == $proofId][0]{
     _id, "needId": need._ref, verdict, coverage, uploaderDisplayName, submittedAt, imageSha256,
-    lines[]{text}, matches[]{lineIndex, itemKey, probability}, "decision": decision->{_id, model}
+    lines[]{text}, matches[]{lineIndex, itemKey, probability, quantity, quantityLine}, quantities[]{itemKey, needed, shown},
+    "decision": decision->{_id, model}
   },
   "review": *[_type == "review" && proof._ref == $proofId && action == "approve"] | order(createdAt desc)[0]{reviewerName, createdAt}
 }`
@@ -216,8 +226,10 @@ export async function issueCertificate(needId: string, proofId: string): Promise
   const items = need.items ?? []
   const itemName = new Map(items.map((item) => [item._key, item.name ?? 'Unknown item']))
   const lines = proof.lines ?? []
+  // Version 2 adds what the receipt shows per checklist line (units counted by code).
+  const counted = Array.isArray(proof.quantities)
   const payload = {
-    vouch: 'fulfilment-certificate/1',
+    vouch: counted ? 'fulfilment-certificate/2' : 'fulfilment-certificate/1',
     request: {id: need._id, title: need.title, city: need.city, country: need.country, verifiedAt: need.publishedAt},
     checklist: items.map((item) => ({key: item._key, item: item.name ?? 'Unknown item', unit: item.unit, quantity: item.quantity})),
     pledges: need.pledges.map((pledge) => ({
@@ -236,7 +248,24 @@ export async function issueCertificate(needId: string, proofId: string): Promise
         item: itemName.get(match.itemKey) ?? match.itemKey,
         receiptLine: lines[match.lineIndex]?.text ?? null,
         probability: match.probability,
+        ...(counted
+          ? {
+              quantity: match.quantity ?? 1,
+              quantityLine:
+                typeof match.quantityLine === 'number' && match.quantityLine !== match.lineIndex ? (lines[match.quantityLine]?.text ?? null) : null,
+            }
+          : {}),
       })),
+      ...(counted
+        ? {
+            quantities: (proof.quantities ?? []).map((entry) => ({
+              checklistKey: entry.itemKey,
+              item: itemName.get(entry.itemKey) ?? entry.itemKey,
+              needed: entry.needed,
+              shown: entry.shown,
+            })),
+          }
+        : {}),
     },
     verifiedBy:
       proof.verdict === 'auto_verified'

@@ -87,7 +87,8 @@ export type ProofDeskItem = {
     uploaderDisplayName: string | null
     submittedAt: string | null
     lines: Array<{text: string; amount: number | null; ocrSimilarity: number | null}> | null
-    matches: Array<{lineIndex: number; itemKey: string; probability: number}> | null
+    matches: Array<{lineIndex: number; itemKey: string; probability: number; quantity: number | null; quantityLine: number | null}> | null
+    quantities: Array<{itemKey: string; needed: number; shown: number}> | null
     decision: {_id: string; model: string | null; latencyMs: number | null; answers: string | null; error: string | null} | null
   } | null
   /** The private photo (JPEG data URL) and raw OCR text. */
@@ -101,7 +102,8 @@ const PROOF_INBOX_QUERY = `*[_type == "need" && !(_id in path("drafts.**")) && s
     "items": coalesce(items[]{_key, quantity, "name": supplyItem->name, "unit": supplyItem->unit}, []),
     "proof": *[_type == "proof" && need._ref == ^._id] | order(submittedAt desc)[0]{
       _id, verdict, reasons, coverage, receiptProbability, uploaderDisplayName, submittedAt,
-      lines[]{text, amount, ocrSimilarity}, matches[]{lineIndex, itemKey, probability},
+      lines[]{text, amount, ocrSimilarity}, matches[]{lineIndex, itemKey, probability, quantity, quantityLine},
+      quantities[]{itemKey, needed, shown},
       "decision": decision->{_id, model, latencyMs, answers, error}
     }
   }`
@@ -280,9 +282,6 @@ export async function decideProof(verifier: Verifier, raw: unknown): Promise<Des
   if (!needId || !proofId || (decision !== 'accept' && decision !== 'decline')) {
     return {ok: false, message: 'That is not a valid receipt decision.'}
   }
-  const note = readNote(input.note, decision === 'decline')
-  if (!note.ok) return note
-
   const instance = await readLifecycle(needId)
   if (!instance) return {ok: false, message: 'This request has no lifecycle.'}
   if (instance.currentStage !== 'proof_review') {
@@ -290,6 +289,30 @@ export async function decideProof(verifier: Verifier, raw: unknown): Promise<Des
   }
   const underReview = instance.fields.find((field) => field.name === 'proofId')?.value as unknown
   if (underReview !== proofId) return {ok: false, message: 'A different receipt is under review now. Reload the desk.'}
+
+  // Accepting a receipt that doesn't show the whole checklist marks the request fulfilled anyway,
+  // so the verifier says why, in a note shown publicly with the receipt.
+  let coverage: number | null
+  try {
+    coverage = await getWriteClient().fetch<number | null>(`*[_type == "proof" && _id == $id][0].coverage`, {id: proofId}, {
+      tag: 'vouch.desk.proof',
+      timeout: TIMEOUT_MS,
+    })
+  } catch (error) {
+    return {ok: false, message: `Couldn't read the receipt from Sanity, so nothing was decided: ${errorMessage(error)}`}
+  }
+  const incomplete = typeof coverage !== 'number' || coverage < 1
+  const note = readNote(input.note, decision === 'decline' || incomplete)
+  if (!note.ok) {
+    const missing = tidyStory(typeof input.note === 'string' ? input.note : '').length < 5
+    return decision === 'accept' && incomplete && missing
+      ? {
+          ok: false,
+          message:
+            "This receipt doesn't show everything on the checklist. Write a short note on why you accept it anyway (for example, what the photo shows): it's shown publicly with the receipt.",
+        }
+      : note
+  }
 
   const action = decision === 'accept' ? ACTIONS.proofReview.accept : ACTIONS.proofReview.decline
   try {

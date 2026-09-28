@@ -195,6 +195,11 @@ Docs index for agents: https://www.sanity.io/docs/llms.txt
 ## 4. Browser-side tools
 
 - **Tesseract.js** (free OCR in the browser, no key): `createWorker('eng')` → `worker.recognize(image)` → `data.text` / lines. Downloads worker + language data from a CDN on first use. Receipts improve with preprocessing (grayscale, contrast, upscale). Always show editable lines before matching.
+  - **Observed Sep 28:** the browser's Tesseract (v7) and Node's read the same PNG differently.
+    - In the browser, "3 @ 6.99" came back as "3 Q@ 6.99", and on tightly spaced lines "23.98" as "23.098".
+    - It often reads a size next to a price as digits ("12OZ 56.97" → "1202 56.97"). A plain phone-number regex then flags that as a phone number.
+    - Wider line spacing (54 px at 32 px type) fixed the misreads. So Vouch reads a noisy "@" only when quantity × unit price equals the printed total, and its receipt contact check ignores the price and the quantity statement.
+    - **Always test OCR in the browser that users have,** not only in Node.
   - Verified Day 5 with **7.0.0**: the browser build loads its worker from jsDelivr (`src/worker/browser/defaultOptions.js`), and the core and `eng` data from CDNs too. Nothing needs configuring in Next.js 16 when it's loaded with `await import('tesseract.js')` in a click handler. `PSM` and `OEM` are runtime exports.
   - `tessedit_pageseg_mode: PSM.SINGLE_BLOCK` keeps a product and its price on one line. The first sample read took 8.1 s on production, including the model download, and all 15 lines were right except `16OZ` → `160Z`.
 - **Sanity assets are not private.** Asset files are served to anyone with the URL, and asset documents (`image-…` ids, no dot) in a public dataset can be listed with GROQ. So receipt photos are stored as JPEG data URLs inside private dotted-id documents (`receipt-scan.<id>`), which only the server reads.

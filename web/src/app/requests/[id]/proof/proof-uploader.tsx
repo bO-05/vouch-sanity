@@ -4,8 +4,8 @@ import Link from 'next/link'
 import {useEffect, useId, useState} from 'react'
 import {Field, inputClass, primaryButton, secondaryButton} from '@/components/form'
 import {LifecycleSteps} from '@/components/lifecycle-steps'
-import {looksLikeContactInfo} from '@/lib/contact'
-import {MAX_LINE_LENGTH, MAX_RECEIPT_LINES, ocrSimilarities, splitOcrText} from '@/lib/proof-match'
+import {receiptLineLooksLikeContactInfo} from '@/lib/contact'
+import {isQuantityLine, lastAmount, MAX_LINE_LENGTH, MAX_RECEIPT_LINES, ocrAnchors, readQuantity, splitOcrText} from '@/lib/proof-match'
 import type {ProofStatus} from '@/lib/proofs'
 import {PLEDGEABLE_STAGE, PROOF_VERDICT_LABELS, STAGE_LABELS} from '@/lib/vocab'
 import {proofStatusAction, submitProofAction} from './actions'
@@ -14,9 +14,13 @@ export type ProofChecklistItem = {key: string; name: string; unit: string | null
 
 /** Made-up receipts for the demo (public/samples/, rendered by scripts/make-sample-receipts.ts). */
 const SAMPLES = [
-  {file: 'receipt-groceries.png', label: 'Groceries', covers: 'rice, beans, pasta, peanut butter, oil, eggs'},
-  {file: 'receipt-pharmacy.png', label: 'Pharmacy', covers: 'formula, diapers, wipes, thermometer, fever reducer, plasters, pads, tampons'},
-  {file: 'receipt-household.png', label: 'Household', covers: 'detergent, cleaner, trash bags, soap, blanket, socks, school supplies'},
+  {file: 'receipt-groceries.png', label: 'Groceries', covers: 'rice, beans, milk, pasta, peanut butter, oil, eggs'},
+  {
+    file: 'receipt-pharmacy.png',
+    label: 'Pharmacy',
+    covers: 'formula, diapers, wipes, thermometer, fever reducer, plasters, pads, tampons, toothpaste, toothbrushes, shampoo, soap',
+  },
+  {file: 'receipt-household.png', label: 'Household', covers: 'detergent, cleaner, trash bags, soap, blankets, socks, gloves, school supplies'},
   {file: 'receipt-electronics.png', label: 'Electronics', covers: 'nothing on any checklist (to see a verifier step in)'},
 ]
 
@@ -194,7 +198,9 @@ export function ProofUploader({
         ))}
       </ul>
       <p className="text-xs text-muted">
-        One receipt should cover the whole checklist. Jev checks which item each line bought; it does not check quantities.
+        One receipt should show the whole checklist. Jev checks which item each line bought; Vouch&apos;s code counts how many, from
+        what the receipt prints (“3 @ 18.99”, “3 x 18.99”, “QTY 3”). A line without a quantity counts as one. Anything short goes to
+        a volunteer.
       </p>
     </section>
   )
@@ -280,7 +286,7 @@ export function ProofUploader({
   }
 
   // Editing the lines Tesseract read.
-  const similarities = scan ? ocrSimilarities(lines.map((text) => ({text, amount: null})), scan.ocrText) : []
+  const anchors = scan ? ocrAnchors(lines.map((text) => ({text, amount: null})), scan.ocrText) : []
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 sm:p-6">
@@ -293,8 +299,26 @@ export function ProofUploader({
         </div>
         <ol className="flex flex-col gap-2">
           {lines.map((line, index) => {
-            const changed = minSimilarity !== null && (similarities[index] ?? 0) < minSimilarity
-            const contact = looksLikeContactInfo(line)
+            const anchor = anchors[index]
+            const changed = minSimilarity !== null && (anchor?.similarity ?? 0) < minSimilarity
+            const contact = receiptLineLooksLikeContactInfo(line)
+            // The same quantity reading the server does (a quantity-only line uses the total of the line above).
+            const quantityOnly = isQuantityLine(line)
+            const reading = readQuantity(line, quantityOnly && index > 0 ? lastAmount(lines[index - 1]) : null)
+            const quantityNote = !reading
+              ? null
+              : (anchor?.quantity ?? null) !== reading.quantity
+                ? {warn: true, text: `Quantity ${reading.quantity} isn't what was read in the photo (${anchor?.quantity ?? 'none'}): it counts as one, and a volunteer will compare it.`}
+                : reading.arithmetic === 'does_not_add_up'
+                  ? {warn: true, text: `${reading.quantity} × ${reading.unitPrice} isn't the total ${reading.total}: it counts as one, and a volunteer will check it.`}
+                  : reading.noisy && reading.arithmetic !== 'adds_up'
+                    ? {warn: true, text: `This looks like quantity ${reading.quantity}, but it isn't printed clearly: fix the line, or it counts as one.`}
+                    : {
+                        warn: false,
+                        text: `Quantity ${reading.quantity}${quantityOnly ? ' for the line above' : ''}${
+                          reading.arithmetic === 'adds_up' ? `: ${reading.quantity} × ${reading.unitPrice} = ${reading.total}` : ''
+                        }.`,
+                      }
             return (
               <li key={index} className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
@@ -319,6 +343,8 @@ export function ProofUploader({
                   <p className="pl-8 text-xs text-danger">Looks like a phone, card or transaction number: delete or edit it.</p>
                 ) : changed ? (
                   <p className="pl-8 text-xs text-amber">Changed from what was read in the photo: a volunteer will compare it.</p>
+                ) : quantityNote ? (
+                  <p className={`pl-8 text-xs ${quantityNote.warn ? 'text-amber' : 'text-muted'}`}>{quantityNote.text}</p>
                 ) : null}
               </li>
             )
@@ -400,11 +426,29 @@ function CheckProgress({needId, status}: {needId: string; status: ProofStatus | 
         <ul className="flex flex-col gap-1 text-sm">
           {status.matched.map((match) => (
             <li key={`${match.item}-${match.line}`}>
-              <span className="font-medium">{match.item}</span> ← <span className="font-mono text-xs">{match.line}</span>{' '}
+              <span className="font-medium">{match.item}</span> ← <span className="font-mono text-xs">{match.line}</span>
+              {match.quantity !== null ? (
+                <span>
+                  {' '}
+                  · {match.quantity} {match.quantity === 1 ? 'unit' : 'units'}
+                  {match.quantityText ? (
+                    <span className="text-muted">
+                      {' '}
+                      (from <span className="font-mono text-xs">{match.quantityText}</span>)
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}{' '}
               <span className="text-muted">(p = {match.probability.toFixed(2)})</span>
             </li>
           ))}
         </ul>
+      ) : null}
+      {status?.ok && status.quantities ? (
+        <p className="text-sm text-muted">
+          The receipt shows{' '}
+          {status.quantities.map((entry) => `${Math.min(entry.shown, entry.needed)} of ${entry.needed} ${entry.item}`).join(', ')}.
+        </p>
       ) : null}
       {status?.ok && status.reasons.length > 0 ? (
         <div className="flex flex-col gap-1 text-sm">

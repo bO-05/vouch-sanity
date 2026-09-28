@@ -129,6 +129,18 @@ export const receiptLine = defineType({
         'Computed by the server: 1 means the uploader left the line as OCR read it from the photo. Matched lines below the policy threshold go to a verifier.',
       validation: (rule) => rule.min(0).max(1),
     }),
+    defineField({
+      name: 'ocrLine',
+      title: 'OCR line compared with',
+      type: 'number',
+      description: 'Index of the line OCR read from the photo that this line was compared with (two repeated lines of the photo anchor separately).',
+    }),
+    defineField({
+      name: 'ocrQuantity',
+      title: 'Quantity read in the photo',
+      type: 'number',
+      description: 'The quantity code reads in that OCR text ("3 @ 18.99" → 3). A quantity counts only if the corrected line says the same.',
+    }),
   ],
   preview: {
     select: {text: 'text', amount: 'amount'},
@@ -162,13 +174,42 @@ export const proofMatch = defineType({
       type: 'number',
       validation: (rule) => rule.required().min(0).max(1),
     }),
+    defineField({
+      name: 'quantity',
+      title: 'Units counted',
+      type: 'number',
+      description: 'Counted by code from what the receipt prints ("3 @ 18.99"), never by Jev. A line without a quantity, or one that fails a check, counts as 1.',
+      validation: (rule) => rule.integer().min(0),
+    }),
+    defineField({
+      name: 'quantityLine',
+      title: 'Quantity read from line #',
+      type: 'number',
+      description: 'This line, or a quantity-only line right below it. Empty: no quantity printed.',
+    }),
   ],
   preview: {
-    select: {lineIndex: 'lineIndex', itemKey: 'itemKey', probability: 'probability'},
-    prepare: ({lineIndex, itemKey, probability}) => ({
-      title: `Line ${lineIndex} → ${itemKey}`,
+    select: {lineIndex: 'lineIndex', itemKey: 'itemKey', probability: 'probability', quantity: 'quantity'},
+    prepare: ({lineIndex, itemKey, probability, quantity}) => ({
+      title: `Line ${lineIndex} → ${itemKey}${typeof quantity === 'number' ? ` × ${quantity}` : ''}`,
       subtitle: typeof probability === 'number' ? `p = ${probability.toFixed(2)}` : undefined,
     }),
+  },
+})
+
+/** How many units of one checklist line a receipt shows. Computed by code. */
+export const proofQuantity = defineType({
+  name: 'proofQuantity',
+  title: 'Units on the receipt',
+  type: 'object',
+  fields: [
+    defineField({name: 'itemKey', title: 'Checklist line key', type: 'string', validation: (rule) => rule.required()}),
+    defineField({name: 'needed', title: 'Asked for', type: 'number', validation: (rule) => rule.integer().min(1)}),
+    defineField({name: 'shown', title: 'Shown on the receipt', type: 'number', validation: (rule) => rule.integer().min(0)}),
+  ],
+  preview: {
+    select: {itemKey: 'itemKey', needed: 'needed', shown: 'shown'},
+    prepare: ({itemKey, needed, shown}) => ({title: `${itemKey}: ${shown ?? 0} of ${needed ?? '?'}`}),
   },
 })
 
@@ -268,7 +309,7 @@ export const policyThresholds = defineType({
     probability(
       'proofMinCoverage',
       'Proof: minimum coverage',
-      'Share of checklist lines that must be matched to a receipt line for automatic verification.',
+      "Share of the checklist's units the receipt must show for automatic verification (each line counted up to the quantity asked for; code counts the units). 1 = the whole checklist, in full. Anything below goes to a verifier.",
     ),
     probability(
       'receiptMinProbability',

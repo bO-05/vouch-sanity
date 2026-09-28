@@ -4,7 +4,7 @@ import type {ReactNode} from 'react'
 import {LifecycleSteps} from '@/components/lifecycle-steps'
 import {answerRows} from '@/lib/answers'
 import {loadDesk, type DeskItem, type DeskState, type ProofDeskItem, type RecentReview} from '@/lib/desk'
-import {timeAgo} from '@/lib/format'
+import {receiptUnits, timeAgo} from '@/lib/format'
 import {isVerifierConfigured, readVerifier} from '@/lib/verifier'
 import {
   LANGUAGE_LABELS,
@@ -140,13 +140,27 @@ function ProofDeskCard({item, state}: {item: ProofDeskItem; state: DeskState}) {
   const proof = item.proof
   const lines = proof?.lines ?? []
   const matchByLine = new Map((proof?.matches ?? []).map((match) => [match.lineIndex, match]))
+  // Quantity-only lines ("3 @ 18.99") and the line whose quantity they state.
+  const quantityFor = new Map(
+    (proof?.matches ?? []).flatMap((match) =>
+      typeof match.quantityLine === 'number' && match.quantityLine !== match.lineIndex ? [[match.quantityLine, match.lineIndex] as const] : [],
+    ),
+  )
   const itemNames = new Map(item.items.map((line) => [line._key, line.name ?? 'Unknown item']))
+  const shownByItem = proof?.quantities ? new Map(proof.quantities.map((entry) => [entry.itemKey, entry.shown])) : null
+  const units = proof?.quantities ? receiptUnits(proof.quantities) : null
   const rows = proof?.decision ? answerRows(proof.decision.answers, 'proof_match') : null
   return (
     <article className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 sm:p-6">
       <div className="flex flex-wrap items-center gap-2">
         <Chip tone="amber">Receipt · {PROOF_VERDICT_LABELS[proof?.verdict ?? 'pending'] ?? proof?.verdict}</Chip>
-        {typeof proof?.coverage === 'number' ? <Chip>covers {Math.round(proof.coverage * 100)}%</Chip> : null}
+        {units ? (
+          <Chip>
+            shows {units.shown} of {units.needed} units
+          </Chip>
+        ) : typeof proof?.coverage === 'number' ? (
+          <Chip>covers {Math.round(proof.coverage * 100)}%</Chip>
+        ) : null}
         {item.isDemo ? <Chip tone="outline">Demo request</Chip> : null}
       </div>
       <div className="flex flex-col gap-1">
@@ -166,13 +180,27 @@ function ProofDeskCard({item, state}: {item: ProofDeskItem; state: DeskState}) {
           <div>
             <p className="font-medium">Checklist</p>
             <ul className="text-muted">
-              {item.items.map((line) => (
-                <li key={line._key}>
-                  {line.quantity} × {line.name ?? 'Unknown item'}
-                  {line.unit ? ` (${line.unit})` : ''}
-                </li>
-              ))}
+              {item.items.map((line) => {
+                const shown = shownByItem?.get(line._key)
+                return (
+                  <li key={line._key}>
+                    {line.quantity} × {line.name ?? 'Unknown item'}
+                    {line.unit ? ` (${line.unit})` : ''}
+                    {shownByItem ? (
+                      <span className={(shown ?? 0) < line.quantity ? 'text-amber' : ''}>
+                        {' '}
+                        · receipt shows {shown ?? 0}
+                      </span>
+                    ) : null}
+                  </li>
+                )
+              })}
             </ul>
+            {shownByItem ? (
+              <p className="mt-1 text-xs text-muted">
+                Quantities are read by Vouch&apos;s code from the lines (like “3 @ 18.99”); a line without one counts as one.
+              </p>
+            ) : null}
           </div>
           <div>
             <p className="font-medium">Receipt lines (after the uploader&apos;s corrections)</p>
@@ -187,7 +215,10 @@ function ProofDeskCard({item, state}: {item: ProofDeskItem; state: DeskState}) {
                     {match ? (
                       <span className="text-xs text-amber">
                         → {itemNames.get(match.itemKey)} (p = {match.probability.toFixed(2)})
+                        {typeof match.quantity === 'number' ? ` · counts ${match.quantity}` : ''}
                       </span>
+                    ) : quantityFor.has(index) ? (
+                      <span className="text-xs text-muted">quantity for line {(quantityFor.get(index) ?? 0) + 1}</span>
                     ) : null}
                     {similarity !== null && similarity < 1 ? (
                       <span className="text-xs text-muted">edited · {Math.round(similarity * 100)}% like the OCR</span>

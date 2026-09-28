@@ -146,7 +146,9 @@ const POLICY = {
     triageMinConfidence: 0.7,
     maxFlagProbability: 0.5,
     proofMinMatchProbability: 0.7,
-    proofMinCoverage: 0.8,
+    // Share of the checklist's UNITS the receipt must show (Sep 28: quantities are counted by code).
+    // 1 = automatic "fulfilled" only when everything was bought in full; anything short goes to a volunteer.
+    proofMinCoverage: 1,
     receiptMinProbability: 0.6,
     proofMinOcrSimilarity: 0.6,
   },

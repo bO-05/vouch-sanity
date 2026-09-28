@@ -124,7 +124,7 @@ export function ProofDecisionPanel({needId, proofId}: {needId: string; proofId: 
       <Field
         id={`${id}-note`}
         label="Note"
-        hint={`Required to decline (shown with the receipt on the public page, so the uploader can fix it). No contact details. ${note.length}/${MAX_NOTE}`}
+        hint={`Required to decline, and to accept a receipt that doesn't show the whole checklist. Shown with the receipt on the public page. No contact details. ${note.length}/${MAX_NOTE}`}
       >
         <textarea id={`${id}-note`} value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={MAX_NOTE} className={inputClass} />
       </Field>

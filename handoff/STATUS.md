@@ -2,11 +2,21 @@
 
 A brand-new session should be able to continue from this file alone. It's rewritten at every wrap-up.
 
-**Last updated:** Mon Sep 28, 2026, Day 7 (part 1). Demo reset done (the user approved the dry run), the full production run of DoD 1-7 passed, and 14 screenshots are saved. Left for Day 7: the demo video. Then Day 8: the post.
+**Last updated:** Mon Sep 28, 2026, Day 7 (part 2).
+- Part 1: demo reset done (the user approved the dry run), the full production run of DoD 1-7 passed, and 14 screenshots are saved.
+- Part 2: the user found "fulfilled while 2 still needed". Code now counts receipt quantities; coverage is units and the policy needs 1.0. Verified on production.
+- Left for Day 7: the demo video. Then Day 8: the post.
 
 ## Where we are
 
-- Days 1-6 are verified and ticked. On Day 7, the reset, the full DoD run and the screenshots are ticked in PLAN; the video isn't. Evidence is in `handoff/BUILD_LOG.md` ("Day 7 (part 1)").
+- Days 1-6 are verified and ticked. On Day 7, the reset, the full DoD run, the screenshots and the quantity fix are ticked in PLAN; the video isn't. Evidence is in `handoff/BUILD_LOG.md` ("Day 7 (part 1)" and "(part 2)").
+- **Receipts count quantities (Sep 28, part 2):**
+  - `web/src/lib/proof-match.ts`: `readQuantity`, `isQuantityLine`, `ocrAnchors`, and a gate by units.
+  - Each proof stores `quantities[]` and `matches[].quantity`; the certificate is `fulfilment-certificate/2`.
+  - Policy `proofMinCoverage` = 1.
+  - Accepting a short receipt on the desk requires a note.
+  - Offline checks: `web/scripts/check-quantities.ts` (58/58). Real Jev: `calibrate-proof.ts` (17/17).
+  - The 4 receipts fulfilled before the change are labeled "checked before Vouch counted quantities" on their pages.
 - **Lifecycle = Sanity Workflows** (`@sanity/workflow-engine` 0.35.0), definition `prod.need-lifecycle.v1`. Runtime in `web/src/lib/lifecycle/`.
 - **New scripts (from `web/`):**
   - `scripts/demo-reset.ts`: dry run unless `--yes`. It backs up to the git-ignored `web/.reset-backups/`, deletes everything in one transaction, then seeds, migrates and runs 11 checks.
@@ -15,14 +25,20 @@ A brand-new session should be able to continue from this file alone. It's rewrit
   - **11 published requests:** 8 seeded, `need-demo-09` (approved), plus:
     - "Soap and toothpaste for my kids", `need-9e0e529b-…`: published automatically, 2/2 toothpaste pledged by Nadia.
     - "Blankets and gloves before winter", `need-055dbef8-…`: sent back, resubmitted, published.
-  - **Fulfilled with certificates:** demo-08 (automatic), demo-06 (declined electronics, then automatic pharmacy) and demo-01 (volunteer-accepted).
+  - **Fulfilled with certificates:**
+    - Before quantities, v1: demo-08 (automatic), demo-06 (declined electronics, then automatic pharmacy), demo-01 (volunteer-accepted), and demo-04 (the user's own test: jon's electronics declined by "dave", then ron's pharmacy automatic).
+    - With quantities, v2:
+      - demo-07 (automatic, pharmacy).
+      - demo-02 (a short receipt, accepted with a note by Bram: blankets 1 of 2).
+      - demo-05 (automatic, household).
+  - **Still open for receipts:** demo-03 (household sample), demo-09 (groceries sample), and the two Day 7 requests (pharmacy and household samples).
   - **Private drafts:**
     - `need-demo-10` and "Medicine for my son" (the emergency plea) wait on the desk, for judges to try.
     - "Help with groceries this week" is rejected.
   - Every document from this run is labeled `isDemo`.
   - Decisions: the 3 Day 1 health checks plus about 15 from this run.
   - Anonymous reads: 0 drafts, receipt scans, reviews and counters. The pledge invariant is `[]`.
-- **Rate-limit use today** (one network): 4 submits (daily cap 12), 4 receipts (daily cap 15), and a few catalog matches. The daily windows reset at 00:00 UTC.
+- **Rate-limit use today** (one network): 4 submits (daily cap 12), about 9 receipts (daily cap 15; the user's 2 included), and a few catalog matches. The daily windows reset at 00:00 UTC.
 
 ## Exact next action
 
@@ -42,6 +58,9 @@ A brand-new session should be able to continue from this file alone. It's rewrit
    - 00 feed · 01 checklist · 02 published · 03 payment flag · 04 emergency · 05 contact refused.
    - 06 desk · 07 sent back · 08 live pledge · 09 auto-verified receipt · 10 certificate match.
    - 11 desk receipt · 12 edited line · 13 fulfilled trail.
+   - 14 quantities read live · 15 fulfilled by units · 16 desk short receipt (accept refused without a note) · 17 certificate v2.
+   - Note: 09-13 show the old wording (before quantities).
+   - The user's bug report is a strong story for the post: "fulfilled, but 2 still needed".
    - Make the repo public and share the verifier passcode only with the user's OK, at submission.
 
 ## Accounts and setup state
@@ -49,7 +68,7 @@ A brand-new session should be able to continue from this file alone. It's rewrit
 | Thing | State |
 |---|---|
 | GitHub | `gh` as `bO-05`. Private repo https://github.com/bO-05/vouch-sanity (public only at submission, with the user's OK) |
-| Vercel | `bo-05`, team `bo05s-projects`, project `vouch-sanity` (`prj_1URHcrG1AU3k4lPHiBSY57hzF2Il`), Root Directory `web`, Node 22.x, function region `cdg1`. Not git-connected: `npx -y vercel@latest deploy --prod --yes` from the repo root. Last prod deploy: `dpl_9fpmDXhK5pvdfKqqm24pagyxmzNU` (no app change on Day 7) |
+| Vercel | `bo-05`, team `bo05s-projects`, project `vouch-sanity` (`prj_1URHcrG1AU3k4lPHiBSY57hzF2Il`), Root Directory `web`, Node 22.x, function region `cdg1`. Not git-connected: `npx -y vercel@latest deploy --prod --yes` from the repo root. Last prod deploy: `dpl_9DBzKHKMgv774T6SHAP8dSYQ7xrT` (receipt quantities). Studio redeployed the same day with the new proof fields |
 | Sanity | CLI logged in (Google). Org `oosvo2181`. Project `o8hcpsct` (Content Lake shard `gcp-eu-w1`, Belgium). Token "Vouch web server (Next.js)" (editor). CORS: `http://localhost:3333`, `http://localhost:3000`, `https://vouch-sanity.vercel.app`. Workflows: definition `prod.need-lifecycle.v1`, tag `prod` |
 | TypeSafe | Key in `web/.env.local` and Vercel env. `jev-latest` → `jev-1.13.0`: about 250-300 ms per call |
 | Tooling | Node 22.22.0, npm 10.5.1, Windows PowerShell 5.1. Next 16.3.6, React 19.3.0, Studio 6.16.0, next-sanity 13.3.4, @sanity/client 8.7.0, @sanity/workflow-engine 0.35.0, @typesafe-ai/sdk 0.6.0, tesseract.js 7.0.0. `npx -y agent-browser` 0.38.1: use **absolute** paths for `screenshot`/`record` |
@@ -87,7 +106,11 @@ A brand-new session should be able to continue from this file alone. It's rewrit
 - **Before any further reset:** show the user the dry run. A reset deletes this run's trails and certificates, which the post may link to.
 - **Documented limits (for the post):**
   - Rate limits: fixed windows, per network, code constants.
-  - Receipts: one receipt must cover the checklist (coverage ≥ 80%), quantities aren't checked, and a photo is at most about 1.1 MB after downscaling.
+  - Receipts:
+    - One receipt must show the whole checklist, in full, for an automatic "fulfilled".
+    - Only printed quantities count ("3 @ 18.99", "3 x 18.99", "QTY 3", "x3"); a line without one counts as 1. So receipts that don't print quantities go to a volunteer, who must write a public note to accept a short one.
+    - A photo is at most about 1.1 MB after downscaling.
+  - OCR: the browser's Tesseract reads differently from Node's; always test samples in the browser.
   - Stuck lifecycles show "Retry automatic steps" after 45 s; nothing retries on its own.
   - Latency: a clean request goes live in about 9 s, and a clean receipt gets its certificate in about 10 s. Each engine commit waits for sync visibility.
 - **Urgency confidence** is Jev's own Score confidence (distance from a level, e.g. 2.18 → 0.18). It's shown verbatim in trails and never gates. Explain it in the post, or the trail looks buggy.

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import {dataset, projectId} from '@/lib/sanity/config'
 import {fetchPublished} from '@/lib/sanity/live'
-import {pledgedOn, totals} from '@/lib/format'
+import {pledgedOn, receiptUnits, totals} from '@/lib/format'
 import {FEED_QUERY, type FeedNeed} from '@/lib/queries'
 import {STAGE_LABELS, URGENCY_LABELS} from '@/lib/vocab'
 
@@ -11,6 +11,13 @@ export const dynamic = 'force-dynamic'
 function NeedCard({need}: {need: FeedNeed}) {
   const {pledged, requested, percent} = totals(need.items)
   const urgency = typeof need.urgency === 'number' ? URGENCY_LABELS[need.urgency] : null
+  // Once fulfilled, the card shows what the verified receipt shows, not what was pledged.
+  const receipt = need.stage === 'fulfilled' ? need.receipt : null
+  const shownByItem = receipt?.quantities ? new Map(receipt.quantities.map((entry) => [entry.itemKey, entry.shown])) : null
+  const onReceipt = new Set(receipt?.matched ?? [])
+  const units = receipt?.quantities ? receiptUnits(receipt.quantities) : null
+  // No bar for a receipt checked before quantities were counted: there is no share to show.
+  const barPercent = receipt ? (units ? Math.round((units.shown / Math.max(1, units.needed)) * 100) : null) : percent
 
   return (
     <article className="relative flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 transition-colors focus-within:border-amber/60 hover:border-amber/60">
@@ -57,25 +64,35 @@ function NeedCard({need}: {need: FeedNeed}) {
               {item.unit ? <span className="text-muted"> ({item.unit})</span> : null}
             </span>
             <span className="shrink-0 font-mono text-xs text-muted">
-              {pledgedOn(item)}/{item.quantity}
+              {receipt
+                ? shownByItem
+                  ? `${Math.min(shownByItem.get(item._key) ?? 0, item.quantity)}/${item.quantity} bought`
+                  : onReceipt.has(item._key)
+                    ? 'on receipt'
+                    : 'not on receipt'
+                : `${pledgedOn(item)}/${item.quantity}`}
             </span>
           </li>
         ))}
       </ul>
 
       <div className="mt-auto flex flex-col gap-2">
-        <div
-          className="h-1.5 overflow-hidden rounded-full bg-surface-2"
-          role="progressbar"
-          aria-valuenow={percent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label="Share of requested units pledged"
-        >
-          <div className="h-full rounded-full bg-amber transition-[width] duration-500" style={{width: `${percent}%`}} />
-        </div>
+        {barPercent !== null ? (
+          <div
+            className="h-1.5 overflow-hidden rounded-full bg-surface-2"
+            role="progressbar"
+            aria-valuenow={barPercent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={receipt ? 'Share of requested units shown on the verified receipt' : 'Share of requested units pledged'}
+          >
+            <div className="h-full rounded-full bg-amber transition-[width] duration-500" style={{width: `${barPercent}%`}} />
+          </div>
+        ) : null}
         <p className="text-xs text-muted">
-          {pledged} of {requested} units pledged · {STAGE_LABELS[need.stage] ?? need.stage}
+          {receipt
+            ? `Fulfilled · ${units ? `the receipt shows ${units.shown} of ${units.needed} units` : 'receipt verified before quantities were counted'}`
+            : `${pledged} of ${requested} units pledged · ${STAGE_LABELS[need.stage] ?? need.stage}`}
         </p>
       </div>
     </article>

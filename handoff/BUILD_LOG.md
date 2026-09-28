@@ -656,3 +656,81 @@ Rate-limit use, for the next session: 4 submits and 4 receipts today, all from o
 - **Polish noticed, not done:** server-rendered times (desk, trails) are UTC, but the status page uses the browser's local time, and neither is labeled.
 
 **Next:** the demo video (agent-browser `record`), then the DEV post (Day 8).
+
+## Day 7 (part 2): Mon, Sep 28. "Fulfilled", but the checklist says "2 still needed"
+
+**Goal:** the user tried the app as a person and sent a screenshot of need-demo-04:
+- The request said **Fulfilled**, but its checklist read "1/3 pledged · 2 still needed", "1/2 · 1 still needed", "0/2 · 2 still needed".
+- They asked: "is this correct behavior? what does fulfilled mean?"
+
+**What was really happening:**
+- The user played three roles. "jon" uploaded the electronics sample, "dave" declined it on the desk, "matt" pledged one formula, and then "ron" uploaded the pharmacy sample. The last one was verified automatically, with no person, and fulfilled 18 s later.
+- By design, "fulfilled" meant: a verified receipt shows the checklist. Pledges never counted, because they're optional promises and the receipt is the proof. So the page showed pledge progress as if it were what was still missing.
+- **The real gap was deeper.** "INFANT FORMULA 12OZ 56.97" is 3 cans × 18.99, but Vouch didn't know that. Any receipt with one can of formula on it would have passed. The receipt page's small print said "it does not check quantities". Nobody reads small print.
+- The user chose the options: fix the wording **and** check quantities.
+
+**What shipped:**
+- **Code counts the units; Jev still never counts.** `web/src/lib/proof-match.ts`:
+  - `readQuantity` reads only explicit forms: "3 @ 18.99", "3 x 18.99", "QTY 3", "x3", and a bare "3 72.500 217.500" only when the arithmetic proves it.
+    - Sizes and pack counts ("12OZ", "40CT", "4PK", "5KG") never count.
+    - When a unit price and a total are printed, quantity × unit price must equal the total, within the printed rounding.
+  - `isQuantityLine`: many receipts print the quantity on its own line under the item ("  3 @ 18.99"). Such lines aren't sent to Jev as products; they belong to the line above.
+  - `ocrAnchors`: each corrected line is tied to the OCR line of the photo it came from, and the quantity OCR read there is stored with it.
+    - A quantity counts only if the photo says the same. A quantity the uploader added or raised counts as 1, and a volunteer compares it with the photo.
+    - When two lines of the photo read the same (two "2 @ 3.99"), each corrected line takes a different one. So a receipt that really repeats a line counts twice, and a line the uploader duplicated counts once.
+  - **Coverage is units now:** units shown (each line capped at its quantity) / units asked for. A line with no quantity counts as 1.
+  - The reason is written by code: "The receipt shows 3 of the 5 units on the checklist (60%; the policy needs 100%…). Fewer than asked for: Infant formula (1 of 3)."
+- **Policy:** `proofMinCoverage` 0.8 → **1**, in the live policy and in the seed. The Studio description says it counts units. **Automatic "fulfilled" now means everything, in full.**
+- **The desk:**
+  - Each checklist line shows "receipt shows N", and each matched receipt line "counts N".
+  - **Accepting a receipt that shows less than everything requires a note.** The server refuses without one ("This receipt doesn't show everything on the checklist. Write a short note on why you accept it anyway…"). The note is public with the receipt.
+- **The words:**
+  - On a fulfilled request, each checklist line reads "3/3 on the receipt" (amber if short), with the pledges as a side note, and the bar shows units on the receipt.
+  - The Fulfilled card says why it's fulfilled: "The receipt shows all 5 units on the checklist…" or "A volunteer verifier (Bram) compared the receipt with its photo and accepted it; it shows 2 of the 3 units". It also says "Pledges are optional promises: whoever buys the items uploads the receipt."
+  - Feed cards say "3/3 bought".
+  - The uploader page reads the quantities live ("Quantity 3 for the line above: 3 × 18.99 = 56.97") and warns when one won't count.
+  - The certificate is `fulfilment-certificate/2`: each match carries its quantity and quantity line, and there's a units table.
+- **Honest about the past:** the 4 receipts fulfilled earlier today have no counts. Their pages say "on the receipt (quantity not checked)" and "checked before Vouch counted quantities". They don't pretend.
+- **New samples** (`web/scripts/make-sample-receipts.ts`, totals computed in code):
+  - Each covers several demo checklists in full, with quantity lines.
+  - The pharmacy one now also covers Day 7's soap-and-toothpaste request, and the household one covers the blankets-and-gloves request.
+
+**Verified by:**
+- `web/scripts/check-quantities.ts` (offline, no Jev): **58/58** checks.
+  - What counts as a quantity and what doesn't: sizes, pack counts, dates, "RICE 5 4.97 9.94".
+  - Quantity-only lines, and how edited lines anchor to the OCR text.
+  - The receipt contact check.
+  - The gate with faked answers: full, quantity line deleted, quantity raised, wrong arithmetic, a line repeated by the receipt vs. duplicated by the uploader, more than asked for.
+- `web/scripts/calibrate-proof.ts` with **real Jev calls**: **17/17** (the old 11 plus 6 quantity cases). The OCR-noise and partial cases now correctly go to a volunteer because units are short.
+- **Production** (`dpl_9DBzKHKMgv774T6SHAP8dSYQ7xrT`, Studio redeployed with the new fields):
+  - **Pharmacy sample → need-demo-07:** the browser read "3 Q@ 6.99" (OCR noise), and code still counted 3, because 3 × 6.99 = 20.97 is the line's total.
+    - `auto_verified`, units 3/3 and 2/2, **certificate v2** issued 11.5 s after submit. Node's SHA-256 of the payload is equal.
+    - The page reads "3/3 on the receipt · 2/2 on the receipt · The verified receipt shows 5 of 5 units · 0 of 5 units were pledged".
+  - **Household sample → need-demo-02 with the "2 @ 11.99" line deleted:**
+    - It went to a volunteer: "shows 2 of the 3 units… Fewer than asked for: Fleece blanket (1 of 2)".
+    - On the desk, **Accept without a note was refused** and the stage stayed `proof_review`. Accept with a note ("The photo shows 2 @ 11.99…") → fulfilled.
+    - The page reads "1/2 on the receipt" in amber, and "A volunteer verifier (Bram) … accepted it; it shows 2 of the 3 units". The certificate records `verifiedBy: volunteer`, blankets 1 of 2.
+  - **Household sample → need-demo-05:** the two identical "2 @ 3.99" lines (cleaner, soap) anchored to different photo lines. `auto_verified`, 2/2 × 4, certificate 10.4 s after submit, and the in-browser hash matches.
+  - need-demo-04 (your screenshot) now reads "on the receipt (quantity not checked)", "Fulfilled by a receipt checked before Vouch counted quantities".
+  - Anonymous reads: 0 receipt scans, drafts, reviews and counters. The pledge invariant is `[]`.
+  - The user's 3 test documents and this run's 3 receipts are labeled demo.
+- `npm run typecheck`, `npm run lint`, and both builds pass.
+
+**What didn't:**
+1. **The browser's Tesseract isn't Node's Tesseract.** I checked the new samples in Node first: all 16 quantity lines read perfectly. In the browser on production:
+   - The pharmacy receipt's line 4 was flagged as a **phone number**, and the uploader couldn't submit it. "INFANT FORMULA 12OZ 56.97" came back as "1202 56.97", which is 7 digits in a row.
+     - The fix: a receipt-line contact check that ignores the trailing price and the quantity statement. Card and phone numbers elsewhere on the line are still caught.
+     - I also renamed the sample items ("INFANT FORMULA CAN").
+   - "3 @ 6.99" came back as "**3 Q@ 6.99**" and didn't count, so the receipt would have gone to a volunteer for nothing. A noisy "@" is now read only when the arithmetic proves it.
+   - A tightly spaced line read "23.98" as "**23.098**". I rendered 4 layouts and ran each through the real browser. The roomier one (32 px type, 54 px lines) read cleanly, so the samples use it now.
+   - The same PNG in the same library gave different text. **Test OCR where the users are.**
+2. `Select-String "\"id\": \"dpl_"` broke PowerShell's parser (an escaped quote inside double quotes). Single quotes fixed it.
+
+**Jev latency:** the user's two receipt checks took 7.8 s each (13:22 and 13:26 UTC), against 0.28-0.36 s for every call before and after. Nothing changed on our side, and the next calls were fast again. So it was on Jev's side, and the trail shows the latency verbatim. Worth a sentence in the post: every Jev call's latency is public in the trail.
+
+**Decisions:**
+- **Only explicit quantities count.** Guessing from the price (56.97 ÷ a catalog estimate) would be the model inventing a number. A receipt without printed quantities counts 1 per line, and a volunteer decides.
+- **Policy 1.0, not 0.8:** "fulfilled" is a promise to the requester. Anything short is a person's call, and that person has to say why in public.
+- **Old certificates aren't reissued.** They're hashed and immutable, and the pages label them as checked before quantities.
+
+**Next:** the demo video, then the DEV post. The story for the post: a user found the gap in five minutes, and the fix keeps the rule. Jev chooses, code counts, and a person decides the rest.

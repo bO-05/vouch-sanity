@@ -32,3 +32,6 @@ Thumbs.db
 
 # temp folders used during installs
 *.aside/
+
+# Tesseract language data cached by Node runs
+*.traineddata

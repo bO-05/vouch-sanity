@@ -1,7 +1,7 @@
 import 'server-only'
 
 import {createHash, randomUUID} from 'node:crypto'
-import {cleanDisplayName, looksLikeContactInfo} from '@/lib/contact'
+import {cleanDisplayName, looksLikeContactInfo, receiptLineLooksLikeContactInfo} from '@/lib/contact'
 import {isPublicDocumentId} from '@/lib/ids'
 import {errorMessage, isConflict, isRecord} from '@/lib/intake-context'
 import {advanceLater} from '@/lib/lifecycle/advance'
@@ -10,7 +10,7 @@ import {
   certificateIdFor,
   MAX_OCR_TEXT_LENGTH,
   MAX_RECEIPT_LINES,
-  ocrSimilarities,
+  ocrAnchors,
   readAmount,
   receiptScanId,
   tidyLineText,
@@ -53,7 +53,7 @@ export async function submitProof(raw: unknown): Promise<SubmitProofResult> {
   if (rawLines.length > MAX_RECEIPT_LINES) return fail(`Keep it to ${MAX_RECEIPT_LINES} lines: delete the ones that aren't products.`)
   const lines = rawLines.map((line) => (typeof line === 'string' ? tidyLineText(line) : '')).filter(Boolean)
   if (lines.length === 0) return fail('Add at least one receipt line.')
-  const contact = lines.findIndex((line) => looksLikeContactInfo(line))
+  const contact = lines.findIndex((line) => receiptLineLooksLikeContactInfo(line))
   if (contact >= 0) {
     return fail(
       `Line ${contact + 1} (“${lines[contact]}”) looks like contact details or a long number (a phone number, email, link, card or transaction number). Delete or edit that line: Vouch never stores contact details.`,
@@ -93,7 +93,9 @@ export async function submitProof(raw: unknown): Promise<SubmitProofResult> {
     return fail("Vouch's lifecycle for this request isn't waiting for a receipt right now, so nothing was saved.")
   }
 
-  const similarities = ocrSimilarities(lines.map((text) => ({text, amount: null})), ocrText)
+  // How each corrected line relates to the photo: similarity, the OCR line and the quantity read there.
+  // Stored on the (public) proof so the gate can check quantities; the OCR text itself stays private.
+  const anchors = ocrAnchors(lines.map((text) => ({text, amount: null})), ocrText)
   const proofId = `proof-${randomUUID()}`
   const scanId = receiptScanId(proofId)
   const imageSha256 = createHash('sha256').update(bytes).digest('hex')
@@ -114,7 +116,9 @@ export async function submitProof(raw: unknown): Promise<SubmitProofResult> {
             _type: 'receiptLine',
             text,
             ...(amount !== null ? {amount} : {}),
-            ocrSimilarity: Math.round(similarities[index] * 1000) / 1000,
+            ocrSimilarity: Math.round(anchors[index].similarity * 1000) / 1000,
+            ...(anchors[index].ocrLine !== null ? {ocrLine: anchors[index].ocrLine} : {}),
+            ...(anchors[index].quantity !== null ? {ocrQuantity: anchors[index].quantity} : {}),
           }
         }),
         imageSha256,
@@ -167,7 +171,9 @@ export type ProofStatus =
       verdict: string
       reasons: string[]
       coverage: number | null
-      matched: Array<{item: string; line: string; probability: number}>
+      matched: Array<{item: string; line: string; probability: number; quantity: number | null; quantityText: string | null}>
+      /** Units the receipt shows per checklist line (null for receipts checked before quantities were read). */
+      quantities: Array<{item: string; needed: number; shown: number}> | null
       needStage: string | null
       lifecycle: LifecycleView | null
       certificateId: string | null
@@ -180,7 +186,8 @@ type StatusRow = {
     reasons: string[] | null
     coverage: number | null
     lines: Array<{text: string}> | null
-    matches: Array<{lineIndex: number; itemKey: string; probability: number}> | null
+    matches: Array<{lineIndex: number; itemKey: string; probability: number; quantity: number | null; quantityLine: number | null}> | null
+    quantities: Array<{itemKey: string; needed: number; shown: number}> | null
   } | null
   need: {stage: string | null; items: Array<{_key: string; name: string | null}> | null} | null
   certificate: string | null
@@ -197,7 +204,10 @@ export async function readProofStatus(raw: unknown): Promise<ProofStatus> {
     const [row, instance] = await Promise.all([
       getWriteClient().fetch<StatusRow>(
         `{
-          "proof": *[_type == "proof" && _id == $proofId && need._ref == $needId][0]{verdict, reasons, coverage, lines[]{text}, matches[]{lineIndex, itemKey, probability}},
+          "proof": *[_type == "proof" && _id == $proofId && need._ref == $needId][0]{
+            verdict, reasons, coverage, lines[]{text}, matches[]{lineIndex, itemKey, probability, quantity, quantityLine},
+            quantities[]{itemKey, needed, shown}
+          },
           "need": *[_type == "need" && _id == $needId][0]{stage, "items": items[]{_key, "name": supplyItem->name}},
           "certificate": *[_type == "certificate" && _id == $certificateId][0]._id
         }`,
@@ -218,7 +228,13 @@ export async function readProofStatus(raw: unknown): Promise<ProofStatus> {
         item: names.get(match.itemKey) ?? 'Unknown item',
         line: lines[match.lineIndex]?.text ?? '',
         probability: match.probability,
+        quantity: typeof match.quantity === 'number' ? match.quantity : null,
+        quantityText:
+          typeof match.quantityLine === 'number' && match.quantityLine !== match.lineIndex ? (lines[match.quantityLine]?.text ?? null) : null,
       })),
+      quantities: row.proof.quantities
+        ? row.proof.quantities.map((entry) => ({item: names.get(entry.itemKey) ?? 'Unknown item', needed: entry.needed, shown: entry.shown}))
+        : null,
       needStage: row.need?.stage ?? null,
       lifecycle: instance ? viewLifecycle(instance) : null,
       certificateId: row.certificate,

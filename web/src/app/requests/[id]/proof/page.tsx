@@ -56,9 +56,10 @@ export default async function ProofPage({params}: PageProps<'/requests/[id]/proo
         <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">Upload the receipt</h1>
         <p className="max-w-3xl text-muted">
           Bought the items for {need.displayName} in {need.city}? Take a photo of the receipt. Your browser reads it
-          (Tesseract.js, nothing leaves your device until you submit), you fix any misread lines, and Jev checks which
-          checklist item each line bought. If the receipt covers the checklist, the request is marked fulfilled and a
-          certificate is issued; otherwise a volunteer verifier looks at the photo.
+          (Tesseract.js, nothing leaves your device until you submit), you fix any misread lines, Jev checks which
+          checklist item each line bought, and Vouch&apos;s code counts the units. If the receipt shows the whole checklist,
+          in the quantities asked for, the request is marked fulfilled and a certificate is issued; otherwise a volunteer
+          verifier looks at the photo.
         </p>
       </header>
 

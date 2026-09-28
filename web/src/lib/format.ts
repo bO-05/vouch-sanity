@@ -32,6 +32,14 @@ export function remainingOn(item: FeedItem): number {
   return Math.max(0, item.quantity - item.pledged)
 }
 
+/** Units a receipt shows across the checklist, each line counted up to the quantity asked for. */
+export function receiptUnits(quantities: Array<{needed: number; shown: number}>): {shown: number; needed: number} {
+  return quantities.reduce(
+    (sum, entry) => ({shown: sum.shown + Math.min(entry.shown, entry.needed), needed: sum.needed + entry.needed}),
+    {shown: 0, needed: 0},
+  )
+}
+
 export function totals(items: FeedItem[] | null | undefined): {
   pledged: number
   requested: number

@@ -4,7 +4,7 @@ import {notFound} from 'next/navigation'
 import {cache, type ReactNode} from 'react'
 import {LifecycleSteps} from '@/components/lifecycle-steps'
 import {answerRows} from '@/lib/answers'
-import {pledgedOn, remainingOn, timeAgo, totals} from '@/lib/format'
+import {pledgedOn, receiptUnits, remainingOn, timeAgo, totals} from '@/lib/format'
 import {isPublicDocumentId} from '@/lib/ids'
 import {NEED_QUERY, type NeedDecision, type NeedDetail, type NeedProof} from '@/lib/queries'
 import {fetchPublished} from '@/lib/sanity/live'
@@ -115,6 +115,12 @@ function ProofEntry({proof, itemNames}: {proof: NeedProof; itemNames: Map<string
   const lines = proof.lines ?? []
   const matches = proof.matches ?? []
   const decided = proof.verdict !== 'pending'
+  const units = proof.quantities ? receiptUnits(proof.quantities) : null
+  const coverage = units
+    ? ` · shows ${units.shown} of ${units.needed} units on the checklist`
+    : typeof proof.coverage === 'number'
+      ? ` · covers ${Math.round(proof.coverage * 100)}% of the checklist items (checked before Vouch counted quantities)`
+      : ''
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-border p-3 text-sm">
       <p className="font-medium">
@@ -122,18 +128,33 @@ function ProofEntry({proof, itemNames}: {proof: NeedProof; itemNames: Map<string
         <span className="font-normal text-muted">
           {' '}
           · {PROOF_VERDICT_LABELS[proof.verdict ?? 'pending'] ?? proof.verdict}
-          {typeof proof.coverage === 'number' ? ` · covers ${Math.round(proof.coverage * 100)}% of the checklist` : ''} ·{' '}
-          {timeAgo(proof.submittedAt)}
+          {coverage} · {timeAgo(proof.submittedAt)}
         </span>
       </p>
       {matches.length > 0 ? (
         <ul className="flex flex-col gap-0.5">
-          {matches.map((match) => (
-            <li key={`${match.lineIndex}-${match.itemKey}`}>
-              {itemNames.get(match.itemKey) ?? 'an item'} ← <span className="font-mono text-xs">{lines[match.lineIndex]?.text}</span>{' '}
-              <span className="text-muted">(p = {match.probability.toFixed(2)})</span>
-            </li>
-          ))}
+          {matches.map((match) => {
+            const quantityText =
+              typeof match.quantityLine === 'number' && match.quantityLine !== match.lineIndex ? lines[match.quantityLine]?.text : null
+            return (
+              <li key={`${match.lineIndex}-${match.itemKey}`}>
+                {itemNames.get(match.itemKey) ?? 'an item'} ← <span className="font-mono text-xs">{lines[match.lineIndex]?.text}</span>
+                {typeof match.quantity === 'number' ? (
+                  <span>
+                    {' '}
+                    · {match.quantity} {match.quantity === 1 ? 'unit' : 'units'}
+                    {quantityText ? (
+                      <span className="text-muted">
+                        {' '}
+                        (from <span className="font-mono text-xs">{quantityText}</span>)
+                      </span>
+                    ) : null}
+                  </span>
+                ) : null}{' '}
+                <span className="text-muted">(p = {match.probability.toFixed(2)})</span>
+              </li>
+            )
+          })}
         </ul>
       ) : decided ? (
         <p className="text-muted">No receipt line matched the checklist.</p>
@@ -153,13 +174,28 @@ function ProofEntry({proof, itemNames}: {proof: NeedProof; itemNames: Map<string
   )
 }
 
-function ReceiptCard({need}: {need: NeedDetail}) {
+/** What "fulfilled" rests on: the verified receipt, and who accepted it. */
+function fulfilledBecause(receipt: NeedProof | null, acceptedBy: string | null): string {
+  if (!receipt) return 'A verified receipt closed this request.'
+  const units = receipt.quantities ? receiptUnits(receipt.quantities) : null
+  if (receipt.verdict === 'verified') {
+    return `A volunteer verifier${acceptedBy ? ` (${acceptedBy})` : ''} compared the receipt with its photo and accepted it${
+      units ? `; it shows ${units.shown} of the ${units.needed} units on the checklist` : ''
+    }.`
+  }
+  return units
+    ? `The receipt shows all ${units.needed} units on the checklist: Jev matched each line to an item, Vouch's code counted the units, and the policy accepted it with no person needed.`
+    : 'Jev matched the receipt to the checklist and the policy accepted it, before Vouch counted quantities.'
+}
+
+function ReceiptCard({need, receipt, acceptedBy}: {need: NeedDetail; receipt: NeedProof | null; acceptedBy: string | null}) {
   if (need.stage === PLEDGEABLE_STAGE) {
     return (
       <Card title="Receipt" id="receipt">
         <p className="text-sm text-muted">
-          Bought the items? Upload the receipt: your browser reads it, Jev checks it against the checklist, and a verified receipt
-          marks this request fulfilled.
+          Bought the items? Upload the receipt: your browser reads it, Jev matches its lines to the checklist and Vouch&apos;s code
+          counts the units. A receipt that shows the whole checklist marks this request fulfilled; anything else goes to a
+          volunteer. You don&apos;t need to have pledged first.
         </p>
         <Link
           href={`/requests/${need._id}/proof`}
@@ -187,8 +223,10 @@ function ReceiptCard({need}: {need: NeedDetail}) {
   if (need.stage === 'fulfilled' && need.certificate) {
     return (
       <Card title="Fulfilled" id="receipt">
-        <p className="text-sm">
-          Fulfilled {timeAgo(need.fulfilledAt ?? need.certificate.issuedAt)}. The certificate&apos;s SHA-256 starts with{' '}
+        <p className="text-sm">{fulfilledBecause(receipt, acceptedBy)}</p>
+        <p className="text-sm text-muted">
+          Fulfilled {timeAgo(need.fulfilledAt ?? need.certificate.issuedAt)}. Pledges are optional promises: whoever buys the items
+          uploads the receipt. The certificate&apos;s SHA-256 starts with{' '}
           <span className="font-mono text-xs">{need.certificate.sha256.slice(0, 16)}…</span>
         </p>
         <Link
@@ -230,6 +268,13 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
   const {reviews, lifecycle, problems} = await loadPrivateTrail(need._id)
   const items = need.items ?? []
   const {pledged, requested, percent} = totals(items)
+  // Once fulfilled, the checklist shows what the verified receipt shows, not what was pledged.
+  const receipt =
+    need.stage === 'fulfilled' ? (need.proofs.find((proof) => proof.verdict === 'auto_verified' || proof.verdict === 'verified') ?? null) : null
+  const acceptedBy = receipt ? (reviews.find((review) => review.proof === receipt._id && review.action === 'approve')?.reviewerName ?? null) : null
+  const shownByItem = receipt?.quantities ? new Map(receipt.quantities.map((entry) => [entry.itemKey, entry.shown])) : null
+  const onReceipt = new Set((receipt?.matches ?? []).map((match) => match.itemKey))
+  const units = receipt?.quantities ? receiptUnits(receipt.quantities) : null
   const itemNames = new Map(items.map((item) => [item._key, item.name ?? 'Unknown item']))
   const urgency = typeof need.urgency === 'number' ? URGENCY_LABELS[need.urgency] : null
   const language = need.language ?? 'en'
@@ -296,6 +341,7 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
                 {items.map((item) => {
                   const done = pledgedOn(item)
                   const left = remainingOn(item)
+                  const bought = shownByItem ? Math.min(shownByItem.get(item._key) ?? 0, item.quantity) : null
                   return (
                     <li key={item._key} className="flex flex-col gap-2">
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -305,25 +351,61 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
                           </span>
                           {item.unit ? <span className="text-sm text-muted"> ({item.unit})</span> : null}
                         </p>
-                        <p className="font-mono text-xs text-muted">
-                          {done}/{item.quantity} pledged
-                          {left > 0 ? ` · ${left} still needed` : ' · fully pledged'}
-                        </p>
+                        {receipt ? (
+                          <p className={`font-mono text-xs ${bought !== null && bought < item.quantity ? 'text-amber' : 'text-muted'}`}>
+                            {bought !== null
+                              ? `${bought}/${item.quantity} on the receipt`
+                              : onReceipt.has(item._key)
+                                ? 'on the receipt (quantity not checked)'
+                                : 'not on the receipt'}
+                            {done > 0 ? ` · ${done} pledged` : ''}
+                          </p>
+                        ) : (
+                          <p className="font-mono text-xs text-muted">
+                            {done}/{item.quantity} pledged
+                            {left > 0 ? ` · ${left} still needed` : ' · fully pledged'}
+                          </p>
+                        )}
                       </div>
-                      <Bar
-                        percent={Math.round((done / item.quantity) * 100)}
-                        label={`${item.name ?? 'Item'}: share pledged`}
-                      />
+                      {receipt ? (
+                        bought !== null ? (
+                          <Bar
+                            percent={Math.round((bought / item.quantity) * 100)}
+                            label={`${item.name ?? 'Item'}: share shown on the verified receipt`}
+                          />
+                        ) : null
+                      ) : (
+                        <Bar percent={Math.round((done / item.quantity) * 100)} label={`${item.name ?? 'Item'}: share pledged`} />
+                      )}
                     </li>
                   )
                 })}
               </ul>
             )}
             <div className="flex flex-col gap-2 border-t border-border pt-4">
-              <Bar percent={percent} label="Share of all requested units pledged" />
-              <p className="text-sm text-muted">
-                {pledged} of {requested} units pledged ({percent}%) · {STAGE_LABELS[need.stage] ?? need.stage}
-              </p>
+              {receipt ? (
+                <>
+                  {units ? (
+                    <Bar
+                      percent={Math.round((units.shown / Math.max(1, units.needed)) * 100)}
+                      label="Share of all requested units shown on the verified receipt"
+                    />
+                  ) : null}
+                  <p className="text-sm text-muted">
+                    {units
+                      ? `The verified receipt shows ${units.shown} of ${units.needed} units`
+                      : 'Fulfilled by a receipt checked before Vouch counted quantities'}{' '}
+                    · {pledged} of {requested} units were pledged · {STAGE_LABELS[need.stage] ?? need.stage}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Bar percent={percent} label="Share of all requested units pledged" />
+                  <p className="text-sm text-muted">
+                    {pledged} of {requested} units pledged ({percent}%) · {STAGE_LABELS[need.stage] ?? need.stage}
+                  </p>
+                </>
+              )}
             </div>
           </Card>
 
@@ -417,7 +499,7 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
         </div>
 
         <aside className="flex flex-col gap-6 lg:sticky lg:top-6 lg:self-start">
-          {need.stage === 'fulfilled' ? <ReceiptCard need={need} /> : null}
+          {need.stage === 'fulfilled' ? <ReceiptCard need={need} receipt={receipt} acceptedBy={acceptedBy} /> : null}
           <Card title="Pledge an item" id="pledge">
             {pledgeable ? (
               <PledgeForm needId={need._id} lines={lines} />
@@ -431,11 +513,13 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
               the checklist closes the loop.
             </p>
           </Card>
-          {need.stage !== 'fulfilled' ? <ReceiptCard need={need} /> : null}
+          {need.stage !== 'fulfilled' ? <ReceiptCard need={need} receipt={null} acceptedBy={null} /> : null}
 
           <Card title={`Pledges (${need.pledges.length})`} id="pledges">
             {need.pledges.length === 0 ? (
-              <p className="text-sm text-muted">No pledges yet. Be the first.</p>
+              <p className="text-sm text-muted">
+                {pledgeable ? 'No pledges yet. Be the first.' : receipt ? 'No pledges were made: the receipt alone closed the loop.' : 'No pledges yet.'}
+              </p>
             ) : (
               <ul className="flex flex-col gap-2 text-sm">
                 {need.pledges.map((pledge) => (

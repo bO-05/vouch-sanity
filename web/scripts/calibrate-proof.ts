@@ -3,8 +3,9 @@
  *
  * Uses the exact question builder and gate the app uses (src/lib/proof-match.ts), the live policy
  * and the checklists of the seeded demo requests (published, read anonymously), and real Jev calls.
- * The receipts are typed here as OCR would read them (every line counts as read from the photo).
- * Nothing is written to Sanity.
+ * The receipts are typed here as OCR would read them. A case can give the photo's OCR text
+ * separately (`ocr`), to test lines the uploader changed; otherwise every line counts as read from
+ * the photo. Quantities are counted by code, exactly as in the app. Nothing is written to Sanity.
  *
  * Run from web/:  node --env-file=.env.local scripts/calibrate-proof.ts
  * Writes ../handoff/calibration/proof-<timestamp>.json and prints a summary.
@@ -15,6 +16,7 @@ import {
   buildProofQuestions,
   gateProof,
   lineQuestionId,
+  ocrAnchors,
   proofState,
   RECEIPT_QUESTION,
   splitOcrText,
@@ -42,7 +44,7 @@ type RawNeed = {
   items: Array<{_key: string; quantity: number; supplyId: string; name: string; unit: string | null; synonyms: string[] | null}>
 }
 
-const needs = await groq<RawNeed[]>(`*[_type == "need" && _id in ["need-demo-01", "need-demo-04", "need-demo-05", "need-demo-06", "need-demo-08"]]{
+const needs = await groq<RawNeed[]>(`*[_type == "need" && _id in ["need-demo-01", "need-demo-04", "need-demo-05", "need-demo-06", "need-demo-07", "need-demo-08"]]{
   _id, "items": items[]{_key, quantity, "supplyId": supplyItem._ref, "name": supplyItem->name, "unit": supplyItem->unit, "synonyms": supplyItem->synonyms}
 }`)
 const policy = await groq<{thresholds: Record<string, number>}>(`*[_id == "policy"][0]{thresholds}`)
@@ -67,7 +69,9 @@ function checklistOf(needId: string): ProofChecklistLine[] {
 }
 
 /** `either`: going to a volunteer is an acceptable (conservative) answer, e.g. heavy OCR noise. */
-type Case = {name: string; needId: string; expect: 'auto_verified' | 'needs_review' | 'either'; text: string}
+type Case = {name: string; needId: string; expect: 'auto_verified' | 'needs_review' | 'either'; text: string; ocr?: string}
+
+const BABY_SHORT = `DROGA RAIA\nSAO PAULO SP\n28/09/2026 09:14\nSIMILAC PRO-ADVANCE 12.4OZ 18.99\nPAMPERS SWADDLERS SZ1 40CT 2 x 12.49 24.98\nHUGGIES NATURAL CARE WIPES 80CT 2 x 3.99 7.98\nTOTAL 51.95\nVISA ****0000`
 
 const GROCERY = `FRESHWAY MARKET
 STORE 0142 HOUSTON TX
@@ -140,6 +144,40 @@ const CASES: Case[] = [
     expect: 'needs_review',
     text: `Dear neighbor,\nthank you so much for the rice\nand the beans and the pasta.\nThe kids love the peanut butter!\nSee you soon, Maria`,
   },
+  // Quantities (Sep 28): code counts them; these check that Jev's matching still works around them.
+  {
+    name: 'quantity lines under the items (sample layout) → demo-04',
+    needId: 'need-demo-04',
+    expect: 'auto_verified',
+    text: `CORNER PHARMACY\nSTORE 311\n09/28/26 10:05 REG 01\nINFANT FORMULA 12OZ 56.97\n3 @ 18.99\nDIAPERS SIZE 1 40CT 24.98\n2 @ 12.49\nBABY WIPES 80CT 7.98\n2 @ 3.99\nDIGITAL THERMOMETER 9.99\nSUBTOTAL 99.92\nTOTAL 99.92\nCASH 100.00\nCHANGE 0.08`,
+  },
+  {name: 'one can of formula instead of 3 → demo-04', needId: 'need-demo-04', expect: 'needs_review', text: BABY_SHORT},
+  {
+    name: 'a quantity the photo does not show (uploader added x3) → demo-04',
+    needId: 'need-demo-04',
+    expect: 'needs_review',
+    text: BABY_SHORT.replace('12.4OZ 18.99', '12.4OZ 18.99 x3'),
+    ocr: BABY_SHORT,
+  },
+  {
+    name: "a quantity that doesn't add up → demo-04",
+    needId: 'need-demo-04',
+    expect: 'needs_review',
+    text: BABY_SHORT.replace('12.4OZ 18.99', '12.4OZ 3 x 18.99 50.00'),
+  },
+  {
+    name: 'the same item rung up several times → demo-07',
+    needId: 'need-demo-07',
+    expect: 'auto_verified',
+    text: `FAMILY DOLLAR\nDETROIT MI\n09/28/26 17:45\nSANITARY PADS 36CT 6.99\nSANITARY PADS 36CT 6.99\nSANITARY PADS 36CT 6.99\nTAMPONS 36CT 7.99\nTAMPONS 36CT 7.99\nTOTAL 36.95\nCASH 40.00\nCHANGE 3.05`,
+  },
+  {
+    name: 'a line the uploader duplicated → demo-07',
+    needId: 'need-demo-07',
+    expect: 'needs_review',
+    text: `FAMILY DOLLAR\nDETROIT MI\n09/28/26 17:45\nSANITARY PADS 36CT 6.99\nSANITARY PADS 36CT 6.99\nSANITARY PADS 36CT 6.99\nTAMPONS 36CT 7.99\nTAMPONS 36CT 7.99\nTOTAL 36.95`,
+    ocr: `FAMILY DOLLAR\nDETROIT MI\n09/28/26 17:45\nSANITARY PADS 36CT 6.99\nSANITARY PADS 36CT 6.99\nTAMPONS 36CT 7.99\nTAMPONS 36CT 7.99\nTOTAL 29.96`,
+  },
 ]
 
 type Answers = SystemOneResult<Questions>['answers']
@@ -162,7 +200,13 @@ async function run(testCase: Case): Promise<Row> {
   const started = performance.now()
   const result = await client.systemOne({state: proofState(lines, checklist), questions})
   const latencyMs = Math.round(performance.now() - started)
-  const checked = lines.map((line) => ({...line, ocrSimilarity: 1}))
+  const anchors = ocrAnchors(lines, testCase.ocr ?? testCase.text)
+  const checked = lines.map((line, index) => ({
+    ...line,
+    ocrSimilarity: anchors[index].similarity,
+    ocrLine: anchors[index].ocrLine,
+    ocrQuantity: anchors[index].quantity,
+  }))
   return {
     case: testCase,
     verdict: gateProof(result.answers, checked, checklist, thresholds),
@@ -186,7 +230,7 @@ for (const row of rows) {
   const ok = row.case.expect === 'either' || row.verdict.verdict === row.case.expect
   if (ok) agree++
   console.log(
-    `${ok ? 'OK  ' : 'MISS'} ${row.case.name}: ${row.verdict.verdict} · coverage ${f2(row.verdict.coverage)} · receipt p ${f2(row.verdict.receiptProbability)} · ${row.questionCount} questions · ${row.inputTokens} tokens · ${row.latencyMs} ms`,
+    `${ok ? 'OK  ' : 'MISS'} ${row.case.name}: ${row.verdict.verdict} · coverage ${f2(row.verdict.coverage)} · units ${row.verdict.quantities.map((q) => `${q.shown}/${q.needed}`).join(' ')} · receipt p ${f2(row.verdict.receiptProbability)} · ${row.questionCount} questions · ${row.inputTokens} tokens · ${row.latencyMs} ms`,
   )
   const lines = splitOcrText(row.case.text)
   lines.forEach((line, index) => {
