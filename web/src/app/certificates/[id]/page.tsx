@@ -33,7 +33,19 @@ function parse(payload: string): Payload | null {
 export default async function CertificatePage({params}: PageProps<'/certificates/[id]'>) {
   const {id} = await params
   if (!isPublicDocumentId(id)) notFound()
-  const certificate = await fetchPublished<CertificateDetail | null>(CERTIFICATE_QUERY, {id})
+  let certificate: CertificateDetail | null = null
+  try {
+    certificate = await fetchPublished<CertificateDetail | null>(CERTIFICATE_QUERY, {id})
+  } catch (error) {
+    return (
+      <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-10 sm:px-8">
+        <div role="alert" className="rounded-2xl border border-danger/40 bg-surface p-5 text-sm">
+          <p className="font-medium text-danger">Couldn&apos;t load this certificate from Sanity.</p>
+          <p className="mt-1 font-mono text-xs text-muted">{error instanceof Error ? error.message : 'Unknown error'}</p>
+        </div>
+      </main>
+    )
+  }
   if (!certificate) notFound()
   const data = parse(certificate.payload)
   const verifiedBy =

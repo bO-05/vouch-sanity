@@ -1,7 +1,8 @@
 import {choice, noul} from '@typesafe-ai/sdk'
 import {askJev, isJevConfigured} from '@/lib/jev'
-import {client} from '@/lib/sanity/client'
 import {CATEGORY_CRITERIA_QUERY, type CategoryCriterion} from '@/lib/queries'
+import {checkRateLimit} from '@/lib/rate-limit'
+import {client} from '@/lib/sanity/client'
 import {isValidVerifierPasscode} from '@/lib/verifier'
 
 /** A fixed, made-up plea: no real person's words are used for health checks. */
@@ -10,10 +11,19 @@ const SAMPLE_PLEA =
 
 /**
  * One real Jev call, recorded as a `decision` (kind health_check).
- * Passcode-protected so strangers can't spend API calls or fill the dataset.
+ * Passcode-protected so strangers can't spend API calls or fill the dataset, and every attempt
+ * counts against the network's passcode limit (shared with the desk sign-in), so it can't be used
+ * to guess the passcode either.
  * POST with header `x-verifier-passcode`.
  */
 export async function POST(request: Request) {
+  const limit = await checkRateLimit('passcode', request.headers)
+  if (!limit.ok) {
+    return Response.json(
+      {ok: false, error: limit.message},
+      {status: limit.reason === 'limited' ? 429 : 503, headers: {'retry-after': String(limit.retryAfterSeconds)}},
+    )
+  }
   if (!isValidVerifierPasscode(request.headers.get('x-verifier-passcode'))) {
     return Response.json({ok: false, error: 'Unauthorized'}, {status: 401})
   }

@@ -15,11 +15,19 @@ export const metadata: Metadata = {
 }
 
 export default async function StatusPage() {
-  // The catalog is only needed to edit a sent-back request; the page still works without it.
-  const [catalog, categories] = await Promise.all([
-    fetchPublished<CatalogItem[]>(CATALOG_QUERY).catch(() => [] as CatalogItem[]),
-    fetchPublished<Array<{title: string}>>(CATEGORY_OPTIONS_QUERY).catch(() => []),
-  ])
+  // The catalog is only needed to edit a sent-back request. The page works without it, but the edit
+  // form must say why it can't be used rather than pretend the items left the catalog.
+  let catalog: CatalogItem[] = []
+  let categories: Array<{title: string}> = []
+  let catalogError: string | null = null
+  try {
+    ;[catalog, categories] = await Promise.all([
+      fetchPublished<CatalogItem[]>(CATALOG_QUERY),
+      fetchPublished<Array<{title: string}>>(CATEGORY_OPTIONS_QUERY),
+    ])
+  } catch (error) {
+    catalogError = error instanceof Error ? error.message : 'Unknown error'
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-5 py-8 sm:px-8">
@@ -34,7 +42,11 @@ export default async function StatusPage() {
           except to look up your request, and Vouch stores only a fingerprint (SHA-256) of it.
         </p>
       </header>
-      <StatusView catalog={catalog} categoryOrder={categories.map((category) => category.title)} />
+      <StatusView
+        catalog={catalog}
+        categoryOrder={categories.map((category) => category.title)}
+        catalogError={catalogError}
+      />
     </main>
   )
 }

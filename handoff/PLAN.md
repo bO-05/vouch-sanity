@@ -111,13 +111,22 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
     - Anonymous reads see 0 receipt scans, 0 reviews and 0 drafts. The pledge invariant holds.
   - Calibration on 11 synthetic receipts: 11/11 (`web/scripts/calibrate-proof.ts`).
   - Known limit: one receipt must cover the whole checklist; quantities aren't checked.
-- [ ] Day 6 (Oct 2): polish, policy-as-content, empty/error states; a simple per-IP rate limit on pledges, catalog matches and submissions (each submission costs 2 Jev calls and a draft); COULD items only if all MUST are green.
-  - Idea: a trail "state check" that recomputes each decision's state from the published text and compares it with `stateDigest`.
+- [x] Day 6 (Oct 2, done Sep 28): polish, policy-as-content, empty/error states, per-network rate limits.
+  - *Verified Sep 28 on production (`dpl_4mULSinxjePqcWo9iHd4vgC4JeYn`):*
+    - **Rate limits,** counted in private Sanity documents (`web/src/lib/rate-limit.ts`) and exceeded on purpose with invalid inputs:
+      - Passcode (desk sign-in + Jev health): 10 per 15 min, then 429 with `Retry-After`; the desk form shows the message.
+      - Receipts: 6 per hour. Submits: 5 per hour. Catalog matches: 20 per hour. Pledges: 30 per hour.
+      - No IP is stored (HMAC of the network). Anonymous reads see 0 counters. Expired counters are deleted automatically.
+      - If Sanity can't count, the action is refused (checked with a "Sanity down" build).
+    - **Error states:** every page says what failed when Sanity is unreachable. There are now a site-wide 404 and error boundary. The trail reports failed reads. The resubmit form no longer claims items "left the catalog" when the catalog failed to load.
+    - **Phones:** all 7 pages fit at 390 px and 320 px. Fixed the nav wrap, grid overflow, and the camera-only receipt input.
+    - **Policy as content:** `catalogMinProbability` 0.5 → 0.95 in the published policy dropped Bread (p 0.87) from the very next match 16 s later, with no redeploy ("proposed 3 items" → "proposed 2 items"). Restored.
+  - Not done (optional idea): a trail "state check" that recomputes each decision's state from the published text and compares it with `stateDigest`.
 - [ ] Day 7 (Oct 3): full production run of every DoD step; demo reset script (delete non-demo pledges, proofs and test docs, then `npm run seed`) and seed demo data; demo video + screenshots.
   - The reset must also delete the `prod` workflow instances and re-run `web/scripts/workflow-migrate.ts`, since re-seeding resets `need-demo-09/10` to `intake`.
   - Day 5 test data to reset: need-demo-01, 06 and 08 are fulfilled. Delete their proofs, the `receipt-scan.*` docs, `certificate-demo-*`, the receipt reviews and the `proof_match` decisions. The re-seed puts the requests back to `open`, and the migration re-adopts them at `open`.
-  - Add a rate limit on receipt uploads to Day 6's list (each upload is a Jev call plus about 0.5 MB in Sanity).
-  - Rate-limit desk sign-in attempts too (Day 6).
+  - Also delete the `ratelimit.*` counters. Decide whether to keep `catalog_match` decisions whose request was never submitted: every checklist suggestion is stored, including 3 from the Day 6 policy check.
+  - Mind the limits during the full run: one network gets 5 submits per hour (12 per day) and 6 receipts per hour.
 - [ ] Day 8 (Oct 4): DEV post from `handoff/BUILD_LOG.md` (Path Two template); publish by noon PDT.
 
 ## Risks → fallbacks

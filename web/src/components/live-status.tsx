@@ -83,12 +83,13 @@ export function LiveStatus() {
   const label = LABELS[state]
   return (
     <span
-      className="inline-flex items-center gap-2 rounded-full border border-border px-2.5 py-1 text-xs text-muted"
+      className="inline-flex shrink-0 items-center gap-2 rounded-full border border-border px-2 py-1.5 text-xs text-muted sm:px-2.5 sm:py-1"
       title={label.title}
       data-live-state={state}
     >
       <span className={`size-2 rounded-full ${label.dot}`} aria-hidden="true" />
-      {label.text}
+      {/* On a phone only the dot shows (the nav is tight); screen readers still get the words. */}
+      <span className="sr-only whitespace-nowrap sm:not-sr-only">{label.text}</span>
     </span>
   )
 }

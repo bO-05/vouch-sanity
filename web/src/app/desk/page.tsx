@@ -341,8 +341,10 @@ async function DeskInbox({name}: {name: string}) {
     <>
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
         <p>
-          Signed in as <span className="font-medium">{name}</span>. {items.length} request{items.length === 1 ? '' : 's'} and{' '}
-          {proofs.length} receipt{proofs.length === 1 ? '' : 's'} in the inbox.
+          Signed in as <span className="font-medium">{name}</span>.
+          {loadError
+            ? null
+            : ` ${items.length} request${items.length === 1 ? '' : 's'} and ${proofs.length} receipt${proofs.length === 1 ? '' : 's'} in the inbox.`}
         </p>
         <SignOutButton />
       </div>

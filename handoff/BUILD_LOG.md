@@ -461,3 +461,82 @@ Wrap-ups now happen automatically after each verified milestone, or when I say s
 - **Quantities are not checked**, and one receipt must cover the checklist. Both are documented on the page and in the certificate text.
 
 **Next:** Day 6: polish, rate limits (ask, pledge, catalog match, receipt upload, desk sign-in), empty and error states. Day 7's reset script must also delete the Day 5 test data.
+
+## Day 6: Mon, Sep 28. Limits that live in Sanity, pages that say what failed, and a policy edit that changed the very next decision
+
+**Goal:** Day 6 in PLAN (planned for Oct 2): rate limits, empty and error states, phone layouts, and proof that policy-as-content needs no redeploy. Prompt: "go". The user didn't know how to answer the dictation question ("idk what to answer, do what you think best"), so that check stays open.
+
+**What shipped:**
+- **Rate limits per network, counted in Sanity** (`web/src/lib/rate-limit.ts`):
+  - One private counter document per (limit, network, window): `ratelimit.<limit>-<seconds>.<window start>.<hash>`. One transaction does `createIfNotExists` + `inc`, and Sanity's response carries the new count. So every Vercel instance shares one count.
+  - The limits:
+    - Checklist suggestions: 20 per hour.
+    - New requests: 5 per hour and 12 per day.
+    - Pledges: 30 per hour.
+    - Receipt uploads: 6 per hour and 15 per day.
+    - Passcode attempts: 10 per 15 minutes, shared by the desk sign-in and the Jev health check.
+  - **No IP address is stored.** The network (an IPv4 address, or an IPv6 /64) goes through an HMAC keyed from the server's Sanity token. When a new window opens, a delete-by-query in `after()` removes expired counters.
+  - **Checked first in each action,** before validation, so refused attempts count too.
+  - **If Sanity can't count, the action is refused** ("Vouch couldn't check its rate limit…"). It's never waved through.
+  - **Not limited, on purpose:**
+    - The receipt status poll: the page polls it.
+    - The status lookup: useless without a 256-bit token.
+    - Resubmits: only possible after a verifier's send-back.
+    - Desk decisions: they need a verifier session.
+- **Error states:**
+  - New `app/error.tsx` (Next 16.3's new `retry` prop, read from the bundled docs), `app/global-error.tsx`, and a site-wide `app/not-found.tsx` in the app's style.
+  - The receipt and certificate pages now catch their Sanity reads and say what failed. Before, a Sanity error crashed them to Next's default error page.
+  - The request page's trail now reports a failed read of volunteer reviews or of the lifecycle. Before, it silently showed none.
+  - **A small lie the review found:** if the catalog failed to load on `/status`, the resubmit form would have said "N item(s) left the catalog and were removed". It now says the catalog couldn't be loaded and disables resubmitting.
+  - Smaller fixes:
+    - The desk no longer says "0 requests in the inbox" above a load error.
+    - The feed's empty state links to /ask.
+- **Phones:**
+  - **The nav wrapped** on a 390 px phone ("My requests" and "Ask for help" on two lines each) and hid the desk link.
+    - The links no longer wrap.
+    - On phones, the Live badge is just the dot; screen readers still get the words.
+    - The feed footer now links the desk.
+  - **At 320 px, the request and receipt pages scrolled sideways** (334 and 378 px wide). A grid's implicit `auto` column grew to fit the pledge `<select>` and the file input. `grid-cols-1` (= `minmax(0, 1fr)`) and a full-width file input fixed it.
+  - **The receipt input had `capture="environment"`.** On phones that opens the camera and hides the photo library. Removed, so people can take a photo or pick one they already have.
+
+**Verified by** (production https://vouch-sanity.vercel.app, final deploy `dpl_4mULSinxjePqcWo9iHd4vgC4JeYn`, functions in cdg1):
+- **Probe first**, against the live Content Lake (a temporary script, since deleted):
+  - `createIfNotExists` + `inc` in one transaction with `returnDocuments: true` returned count 1, then 2.
+  - 10 concurrent increments came back as 3…12, with a final 12.
+  - Anonymous reads saw none of the dotted ids.
+  - A delete-by-query with a `[0...500]` slice removed them.
+- **Every limit exceeded on purpose, with invalid inputs.** So no drafts, Jev calls or pledges were created. Calls below each limit reached normal validation, which shows valid calls still pass through.
+  - Jev health with a wrong passcode: 10 × 401, then 429 "Too many passcode attempts from your network: the limit is 10 per 15 minutes…" with `Retry-After: 697` (`x-vercel-id: sin1::cdg1::…`).
+  - The desk sign-in form in a browser then showed the same message.
+  - Receipts: 6 accepted, the 7th refused. Submits: the 6th refused. Catalog matches: the 21st. Pledges: the 31st. About 350 ms per call from Indonesia.
+  - In Sanity: 9 counters, and no IP anywhere. Anonymous `count(*[_type == "rateLimit"])` and `count(*[_id in path("ratelimit.**")])` are both 0.
+  - Cleanup: an expired counter from the local test (its window ended at 04:30 UTC) was deleted when production opened a new window at 04:33.
+- **Sanity down:** a throwaway local build with a nonexistent project ID and a dummy token.
+  - The feed, request, receipt, certificate and ask pages each said "Couldn't load … from Sanity", with Sanity's own error.
+  - The desk sign-in refused with "Vouch couldn't check its rate limit in Sanity (Unauthorized - Session not found), so nothing was done".
+  - `/status` showed the lookup error.
+- **Policy as content, no redeploy:**
+  - The same plea ("Food for the week… two bags of rice and some milk… maybe cereal or bread") at `catalogMinProbability` 0.5 proposed Rice 0.98, Milk 0.97 and Bread 0.87.
+  - Set to 0.95 in the published policy at 05:01:04 UTC. The same call at 05:01:20 proposed only Milk 0.98 and Rice 0.98.
+  - The stored decisions read "proposed 3 items" (twice), then "proposed 2 items".
+  - Restored to 0.5 at 05:01:37.
+- **Phones:** agent-browser as an iPhone 14 (390 px) and at 320 px.
+  - All 7 pages have `scrollWidth == innerWidth`.
+  - The receipt page read the groceries sample in the browser, and its edit screen fits at 320 px.
+- `npm run check` (typecheck, lint and both builds) passes.
+
+**What didn't:**
+1. The codebase-memory index dated from early Day 3. The first re-index created a second project under a derived name; I deleted it and re-indexed as `vouch-sanity`.
+2. My first scrape for production Server Action ids found nothing: Next 16.3 serves chunks from `/_next/static/immutable/chunks/`, not `/_next/static/chunks/`.
+3. The first "before" catalog match printed nothing, because my filter looked for `"message"` and only failures have one. The call still counted and was stored as a decision.
+
+**Decisions:**
+- **Counters in Sanity**, not in memory and not a new service.
+  - An in-memory limiter resets on every cold start and differs per instance.
+  - Upstash would mean a new account and a new dependency.
+  - Sanity already holds everything, the transaction is atomic, and the check costs one round trip.
+- **Fail closed:** an unchecked limit isn't a limit, and every limited action needs Sanity anyway.
+- **Fixed windows,** documented: a burst across a window boundary can reach twice a limit. Limits are per network, so people behind one NAT share them.
+- **Limits are code constants, not policy content:** they must keep working when the policy doesn't load, and a Studio edit shouldn't be able to switch abuse protection off.
+
+**Next:** Day 7: the demo reset script and a full production run of every DoD step, then the demo video and screenshots. The dictation check still waits for the user.

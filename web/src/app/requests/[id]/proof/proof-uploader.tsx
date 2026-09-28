@@ -224,24 +224,24 @@ export function ProofUploader({
 
   if (phase === 'pick' || phase === 'reading') {
     return (
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <section className="flex flex-col gap-5 rounded-2xl border border-border bg-surface p-5 sm:p-6">
           <Field
             id={`${id}-photo`}
             label="Photo of the receipt"
-            hint="Cover card numbers and anything personal first. The photo is only shown to volunteer verifiers, never on the public page."
+            hint="Take a photo or pick one you already have. Cover card numbers and anything personal first. The photo is only shown to volunteer verifiers, never on the public page."
           >
+            {/* No `capture`: on phones it forces the camera and hides the photo library. */}
             <input
               id={`${id}-photo`}
               type="file"
               accept="image/*"
-              capture="environment"
               disabled={phase === 'reading'}
               onChange={(event) => {
                 const file = event.target.files?.[0]
                 if (file) void read(file)
               }}
-              className="text-sm file:mr-3 file:rounded-xl file:border file:border-border file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-foreground"
+              className="w-full max-w-full text-sm file:mr-3 file:rounded-xl file:border file:border-border file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:text-foreground"
             />
           </Field>
           <div className="flex flex-col gap-2">
@@ -282,7 +282,7 @@ export function ProofUploader({
   // Editing the lines Tesseract read.
   const similarities = scan ? ocrSimilarities(lines.map((text) => ({text, amount: null})), scan.ocrText) : []
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 sm:p-6">
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold">Check the lines</h2>

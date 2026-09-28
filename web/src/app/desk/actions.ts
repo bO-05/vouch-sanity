@@ -1,6 +1,7 @@
 'use server'
 
 import {decide, decideProof, retryAutomaticSteps, startMissingLifecycle, type DeskActionResult} from '@/lib/desk'
+import {checkRateLimit} from '@/lib/rate-limit'
 import {endVerifierSession, readVerifier, startVerifierSession} from '@/lib/verifier'
 
 /**
@@ -10,7 +11,10 @@ import {endVerifierSession, readVerifier, startVerifierSession} from '@/lib/veri
 
 export type SignInState = {ok: boolean; message: string | null}
 
+/** Every attempt counts against the network's passcode limit (shared with the Jev health check). */
 export async function signInAction(_previous: SignInState, formData: FormData): Promise<SignInState> {
+  const limit = await checkRateLimit('passcode')
+  if (!limit.ok) return {ok: false, message: limit.message}
   const result = await startVerifierSession(formData.get('passcode'), formData.get('name'))
   return result.ok ? {ok: true, message: null} : {ok: false, message: result.message}
 }

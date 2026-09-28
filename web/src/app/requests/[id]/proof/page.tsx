@@ -17,10 +17,26 @@ export const metadata: Metadata = {
 export default async function ProofPage({params}: PageProps<'/requests/[id]/proof'>) {
   const {id} = await params
   if (!isPublicDocumentId(id)) notFound()
-  const [need, rawPolicy] = await Promise.all([
-    fetchPublished<ProofPageNeed | null>(PROOF_PAGE_QUERY, {id}),
-    fetchPublished<unknown>(POLICY_QUERY),
-  ])
+  let need: ProofPageNeed | null = null
+  let rawPolicy: unknown = null
+  try {
+    ;[need, rawPolicy] = await Promise.all([
+      fetchPublished<ProofPageNeed | null>(PROOF_PAGE_QUERY, {id}),
+      fetchPublished<unknown>(POLICY_QUERY),
+    ])
+  } catch (error) {
+    return (
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-5 py-10 sm:px-8">
+        <Link href={`/requests/${id}`} className="text-sm text-muted hover:text-foreground">
+          ← Back to the request
+        </Link>
+        <div role="alert" className="rounded-2xl border border-danger/40 bg-surface p-5 text-sm">
+          <p className="font-medium text-danger">Couldn&apos;t load this request from Sanity, so no receipt can be uploaded right now.</p>
+          <p className="mt-1 font-mono text-xs text-muted">{error instanceof Error ? error.message : 'Unknown error'}</p>
+        </div>
+      </main>
+    )
+  }
   if (!need) notFound()
   const policy = parsePolicy(rawPolicy)
   const items = (need.items ?? []).map((item) => ({

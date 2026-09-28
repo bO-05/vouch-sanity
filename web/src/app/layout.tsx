@@ -32,21 +32,21 @@ export default function RootLayout({children}: LayoutProps<'/'>) {
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
         <div className="border-b border-border">
-          <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
+          <nav className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-5 py-3 sm:gap-4 sm:px-8">
             <Link href="/" className="font-mono text-sm font-semibold uppercase tracking-[0.2em] text-amber">
               Vouch
             </Link>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 min-[360px]:gap-3 sm:gap-4">
               <LiveStatus />
-              <Link href="/desk" className="hidden text-sm text-muted hover:text-foreground sm:inline">
+              <Link href="/desk" className="hidden whitespace-nowrap text-sm text-muted hover:text-foreground sm:inline">
                 Verifier desk
               </Link>
-              <Link href="/status" className="text-sm text-muted hover:text-foreground">
+              <Link href="/status" className="whitespace-nowrap text-sm text-muted hover:text-foreground">
                 My requests
               </Link>
               <Link
                 href="/ask"
-                className="rounded-full bg-amber px-3.5 py-1.5 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+                className="whitespace-nowrap rounded-full bg-amber px-3 py-1.5 text-sm font-semibold text-background transition-opacity hover:opacity-90 sm:px-3.5"
               >
                 Ask for help
               </Link>

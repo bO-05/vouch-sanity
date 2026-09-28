@@ -130,6 +130,12 @@ Docs index for agents: https://www.sanity.io/docs/llms.txt
 - **Handlers:** `onWelcome`, `onReconnect`, `onError` and `onGoAway` can be functions exported from a `'use client'` module. They pass through the server `SanityLive` component as client references, which is how the "Live" badge reflects the real connection state.
 - **Public actions:** next-sanity always bundles `revalidateSyncTagsAction` as a Server Action (it shows up in `server-reference-manifest.json`), even when `action="refresh"` is used. It's harmless for us, since nothing is cached, but it is a public endpoint.
 - **Transactions:** a failed `ifRevisionId` guard comes back as HTTP 409 (`ClientError.statusCode === 409`) and the whole transaction is rolled back. `setIfMissing` + `inc` in one patch initializes a missing `items[_key=="…"].pledgedQty` and then increments it.
+- **Atomic counters (verified Day 6):** one transaction with `createIfNotExists({_id, count: 0})` + `patch(_id).inc({count: 1})`, committed with `returnDocuments: true`, returns the document with its new count.
+  - 10 concurrent increments came back as 3…12 (no lost update), about 300-700 ms each from Indonesia.
+  - A dotted id (`ratelimit.…`) isn't readable anonymously.
+  - `client.delete({query: '*[… && expiresAt < $now][0...500]', params})` deletes by query, and the slice bounds the batch.
+- **Next 16.3 error boundaries:** `error.tsx` gets `retry` (stable in 16.3.0; it re-fetches and re-renders), and `reset` only clears the state. In production, errors from Server Components reach the client without their message, only a `digest`.
+- **Next 16.3 chunk paths:** production pages load JS from `/_next/static/immutable/chunks/`, not `/_next/static/chunks/`.
 - **Testing a Server Action directly:** send `POST <page URL>` with these parts:
   - Headers: `Next-Action: <id>` and `Origin` equal to the host (otherwise Next's CSRF check rejects it with a 500).
   - Body: `Content-Type: text/plain`, containing a JSON array of the arguments.

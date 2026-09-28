@@ -227,7 +227,7 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
   if (!need) notFound()
 
   // Published (the public client returned it), so its reviews and lifecycle may be shown.
-  const {reviews, lifecycle} = await loadPrivateTrail(need._id)
+  const {reviews, lifecycle, problems} = await loadPrivateTrail(need._id)
   const items = need.items ?? []
   const {pledged, requested, percent} = totals(items)
   const itemNames = new Map(items.map((item) => [item._key, item.name ?? 'Unknown item']))
@@ -241,7 +241,11 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
     remaining: remainingOn(item),
   }))
   const hasTrail =
-    Boolean(need.triage?.outcome) || need.decisions.length > 0 || reviews.length > 0 || need.proofs.length > 0
+    Boolean(need.triage?.outcome) ||
+    need.decisions.length > 0 ||
+    reviews.length > 0 ||
+    need.proofs.length > 0 ||
+    problems.length > 0
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-5 py-8 sm:px-8">
@@ -272,7 +276,8 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
         </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      {/* grid-cols-1 = minmax(0, 1fr): on a phone the column must not grow to fit a long option or name. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex flex-col gap-6">
           <Card title={`In ${need.displayName}'s words`} id="story">
             <blockquote lang={language} className="border-l-2 border-amber pl-4 text-lg leading-relaxed">
@@ -323,6 +328,14 @@ export default async function RequestPage({params}: PageProps<'/requests/[id]'>)
           </Card>
 
           <Card title="Trail" id="trail">
+            {problems.length > 0 ? (
+              <ul role="status" className="flex flex-col gap-1 rounded-xl border border-danger/40 p-3 text-sm text-danger">
+                {problems.map((problem) => (
+                  <li key={problem}>{problem}</li>
+                ))}
+              </ul>
+            ) : null}
+
             {need.triage?.outcome ? (
               <div className="flex flex-col gap-1 text-sm">
                 <p>

@@ -112,7 +112,10 @@ export default async function Home() {
         </div>
       ) : needs.length === 0 ? (
         <p className="rounded-2xl border border-border bg-surface p-5 text-muted">
-          No verified requests yet.
+          No verified requests right now. New ones appear here as soon as they&apos;re verified, without a reload.{' '}
+          <Link href="/ask" className="text-amber hover:underline">
+            Ask for help
+          </Link>
         </p>
       ) : (
         <section aria-label="Verified requests" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -125,7 +128,11 @@ export default async function Home() {
       <footer className="mt-auto border-t border-border pt-6 text-xs text-muted">
         Content lives in Sanity: project <span className="font-mono">{projectId}</span>, public dataset{' '}
         <span className="font-mono">{dataset}</span> (published = verified; drafts stay private). Cards marked
-        Demo are samples written by the Vouch team.
+        Demo are samples written by the Vouch team. Volunteers:{' '}
+        <Link href="/desk" className="text-amber hover:underline">
+          verifier desk
+        </Link>
+        .
       </footer>
     </main>
   )

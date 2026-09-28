@@ -89,6 +89,8 @@ Story hook for the post: "A mutual-aid app whose AI can't write a single sentenc
   - `web/src/app/requests/[id]/proof/` (upload page: in-browser Tesseract.js, editable lines, live check) and `web/src/app/certificates/[id]/` (in-browser SHA-256 check).
   - `web/src/lib/desk.ts`: the verifier desk. Inbox read (drafts, receipts and instances) and decide / decide on a receipt / retry / start, as engine actions.
   - `web/src/lib/verifier.ts`: passcode check and the HMAC-signed httpOnly session cookie (`readVerifier`, called by every desk action).
+  - `web/src/lib/rate-limit.ts`: per-network limits, counted in private `ratelimit.*` Sanity documents (atomic `createIfNotExists` + `inc`; no IP stored, only an HMAC of the network). `checkRateLimit(name)` runs first in the costly actions: catalog match, submit, pledge, receipt upload, and the passcode (desk sign-in and Jev health). If Sanity can't count, the action is refused. The limits are code constants in `RATE_LIMITS`.
+  - Error pages: `web/src/app/error.tsx` (uses `retry`, Next 16.3), `global-error.tsx` and `not-found.tsx`. Pages still catch their own Sanity reads and say what failed.
   - `web/src/lib/trail.ts`: the server-side half of a published request's trail. Reviews live under the private `review.*` path; send-back and reject notes are hidden.
   - `web/src/lib/intake-context.ts`: catalog, categories and policy loader shared by intake and triage.
   - `web/src/lib/triage.ts` and `web/src/lib/catalog-match.ts`: pure modules (no runtime imports) with the question builders and the code gates. They're shared with `web/scripts/`.
@@ -120,7 +122,8 @@ Run from the repo root (npm workspaces `web` and `studio`) unless noted.
 | Calibrate proof match | `... scripts/calibrate-proof.ts` (from `web/`) | Real Jev calls on 11 synthetic receipts against the demo checklists (live policy). Writes `handoff/calibration/proof-*.json`. Nothing is written to Sanity |
 | Sample receipts | `node scripts/make-sample-receipts.ts` (from `web/`) | Renders `web/public/samples/*.png` from SVG with `sharp` (hoisted at the root). Made-up receipts that cover the demo checklists, plus one that matches nothing |
 | Browser checks | `npx -y agent-browser --session <name> <cmd>` | Not on PATH. The first `open` in a session starts a daemon, and the shell tool reports `ChildProcess.kill`, but the session keeps working. Use two sessions for live-update checks |
-| Call a Server Action directly | See RESEARCH §2.7 | For adversarial tests (over-pledge, drafts, races). Action ids differ per build |
+| Call a Server Action directly | See RESEARCH §2.7 | For adversarial tests (over-pledge, drafts, races). Action ids differ per build. In production, scrape them from `/_next/static/immutable/chunks/*.js` (pattern `createServerReference)("<42 hex>",…,"<name>Action")`). Every call counts against the rate limits |
+| Inspect rate limits | `... documents query "*[_type == 'rateLimit']{_id, count, expiresAt}" --api-version v2021-06-07` (from `studio/`) | Private counters. Delete them to reset a limit during tests |
 | Pledge invariant | Anonymous GROQ: `*[_type=='need']{_id, 'bad': items[coalesce(pledgedQty,0) != coalesce(math::sum(*[_type=='pledge' && status!='cancelled' && need._ref==^.^._id && itemKey==^._key].quantity),0)]._key}[count(bad) > 0]` | Must return `[]` |
 | Jev health check | `POST /api/jev/health` with header `x-verifier-passcode` | One real Jev call, recorded as a `decision` doc |
 | Deploy the lifecycle | `node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file=.env.local scripts/workflow-deploy.ts` (from `web/`) | `engine.deployDefinitions`, engine 0.35.0, tag `prod`. Idempotent. Don't use the built-in `sanity workflows deploy` (it's 0.32) |

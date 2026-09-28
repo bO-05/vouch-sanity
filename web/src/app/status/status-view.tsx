@@ -21,7 +21,8 @@ const WAITING_STAGES = new Set(['review', 'sent_back'])
 const FAST_POLL_MS = 1_500
 const SLOW_POLL_MS = 20_000
 
-type Catalog = {catalog: CatalogItem[]; categoryOrder: string[]}
+/** `catalogError` is set when the catalog couldn't be loaded (the edit form then says so). */
+type Catalog = {catalog: CatalogItem[]; categoryOrder: string[]; catalogError?: string | null}
 
 function subscribeHash(callback: () => void) {
   window.addEventListener('hashchange', callback)
@@ -33,7 +34,7 @@ function subscribeStorage(callback: () => void) {
   return () => window.removeEventListener('storage', callback)
 }
 
-export function StatusView({catalog, categoryOrder}: Catalog) {
+export function StatusView({catalog, categoryOrder, catalogError}: Catalog) {
   // The token lives in the URL fragment, which browsers never send to a server.
   const token = useSyncExternalStore(subscribeHash, () => window.location.hash.slice(1) || null, () => null)
   // Re-read on every render (cheap); the string snapshot only changes when the list does.
@@ -71,6 +72,7 @@ export function StatusView({catalog, categoryOrder}: Catalog) {
       token={token}
       catalog={catalog}
       categoryOrder={categoryOrder}
+      catalogError={catalogError}
       onForget={(needId) => {
         forgetRequest(needId)
         // Clearing the fragment fires `hashchange`, which re-renders and re-reads the saved list.
@@ -90,6 +92,7 @@ export function StatusTracker({
   token,
   catalog,
   categoryOrder,
+  catalogError,
   onForget,
 }: Catalog & {token: string; onForget?: (needId: string) => void}) {
   const [result, setResult] = useState<StatusLookup | null>(null)
@@ -142,6 +145,7 @@ export function StatusTracker({
       token={token}
       catalog={catalog}
       categoryOrder={categoryOrder}
+      catalogError={catalogError}
       pollMs={pollMs}
       onResubmitted={refresh}
       onForget={onForget ? () => onForget(result.status.needId) : undefined}
@@ -191,6 +195,7 @@ function StatusDetails({
   token,
   catalog,
   categoryOrder,
+  catalogError,
   pollMs,
   onResubmitted,
   onForget,
@@ -244,7 +249,14 @@ function StatusDetails({
       ) : null}
 
       {status.stage === 'sent_back' && !status.published ? (
-        <ResubmitForm status={status} token={token} catalog={catalog} categoryOrder={categoryOrder} onDone={onResubmitted} />
+        <ResubmitForm
+          status={status}
+          token={token}
+          catalog={catalog}
+          categoryOrder={categoryOrder}
+          catalogError={catalogError}
+          onDone={onResubmitted}
+        />
       ) : (
         <section className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 sm:p-6">
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted">What you sent</h2>
@@ -286,6 +298,7 @@ function ResubmitForm({
   token,
   catalog,
   categoryOrder,
+  catalogError,
   onDone,
 }: Catalog & {status: RequestStatus; token: string; onDone: () => void}) {
   const id = useId()
@@ -386,17 +399,29 @@ function ResubmitForm({
       </div>
       <div className="flex flex-col gap-2">
         <p className="text-sm font-medium">Checklist</p>
-        {dropped > 0 ? <p className="text-xs text-muted">{dropped} item(s) left the catalog and were removed.</p> : null}
-        <ChecklistEditor
-          id={id}
-          catalog={catalog}
-          categoryOrder={categoryOrder}
-          lines={lines}
-          onChange={setLines}
-          newLine={(supplyItemId) => ({supplyItemId, quantity: 1})}
-        />
+        {catalogError ? (
+          <div role="alert" className="rounded-xl border border-danger/40 px-3 py-2 text-sm">
+            <p className="text-danger">
+              The supply catalog couldn&apos;t be loaded from Sanity, so the checklist can&apos;t be edited right now. Reload the
+              page to try again; nothing has changed on your request.
+            </p>
+            <p className="mt-1 font-mono text-xs text-muted">{catalogError}</p>
+          </div>
+        ) : (
+          <>
+            {dropped > 0 ? <p className="text-xs text-muted">{dropped} item(s) left the catalog and were removed.</p> : null}
+            <ChecklistEditor
+              id={id}
+              catalog={catalog}
+              categoryOrder={categoryOrder}
+              lines={lines}
+              onChange={setLines}
+              newLine={(supplyItemId) => ({supplyItemId, quantity: 1})}
+            />
+          </>
+        )}
       </div>
-      <button type="submit" disabled={busy} className={`${primaryButton} sm:self-start`}>
+      <button type="submit" disabled={busy || Boolean(catalogError)} className={`${primaryButton} sm:self-start`}>
         {busy ? 'Saving your changes…' : 'Resubmit for verification'}
       </button>
       <div aria-live="assertive">{error ? <p className="rounded-xl border border-danger/40 px-3 py-2 text-sm text-danger">{error}</p> : null}</div>
