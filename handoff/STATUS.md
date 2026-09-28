@@ -2,11 +2,11 @@
 
 A brand-new session should be able to continue from this file alone. It's rewritten at every wrap-up.
 
-**Last updated:** Mon Sep 28, 2026, Day 6 done (planned for Oct 2). Rate limits counted in Sanity, pages that say what failed, phone layouts down to 320 px, and a policy edit that changed the very next decision. Verified on production.
+**Last updated:** Mon Sep 28, 2026. Days 1-6 all done and ticked. Dictation was confirmed on the user's Android phone after the doubled-words fix. Next: Day 7.
 
 ## Where we are
 
-- Days 1, 2, 4, 5 and 6 are verified on production (evidence: the last `handoff/BUILD_LOG.md` entry). Day 3 stays unticked in PLAN until the user confirms dictation works in Chrome.
+- Days 1-6 are verified on production and ticked in PLAN (evidence: `handoff/BUILD_LOG.md`). Day 3's last check, dictation on a real phone, passed on Sep 28 after the fix in `web/src/app/ask/transcript.ts`.
 - **Lifecycle = Sanity Workflows** (`@sanity/workflow-engine` 0.35.0, pinned), definition `prod.need-lifecycle.v1`, every effect implemented.
   - Stages: triage → (review) → publishing → open → proof_check → (proof_review) → certifying → fulfilled, plus sent_back and rejected.
   - Runtime in `web/src/lib/lifecycle/`.
@@ -31,16 +31,15 @@ A brand-new session should be able to continue from this file alone. It's rewrit
 
 Day 7 in `handoff/PLAN.md`.
 
-1. Ask the user for the dictation re-test on their phone (see Blockers; the doubling bug is fixed and deployed). If the sentence appears once, tick Day 3 in PLAN and note it in BUILD_LOG.
-2. **Write the demo reset script** (`web/scripts/demo-reset.ts`, with a `--dry-run` flag). It must:
+1. **Write the demo reset script** (`web/scripts/demo-reset.ts`, with a `--dry-run` flag). It must:
    - Delete the non-demo pledges, proofs, `receipt-scan.*`, `certificate-*`, the reviews, the non-demo requests (published and drafts), and the `ratelimit.*` counters.
    - Delete the `prod` workflow instances.
    - Run `npm run seed`, then `web/scripts/workflow-migrate.ts`.
    - Decide first what happens to the `decision` docs: delete the test ones, or keep them for history.
    - Show the user the dry-run list before deleting anything.
-3. **Full production run of every DoD step** (PLAN "Definition of done" 1-7) after the reset, within the limits: 5 submits per hour and 6 receipts per hour per network.
-4. Screenshots and a demo video (agent-browser `record start/stop`), for the post.
-5. Then Day 8: the DEV post from `handoff/BUILD_LOG.md`.
+2. **Full production run of every DoD step** (PLAN "Definition of done" 1-7) after the reset, within the limits: 5 submits per hour and 6 receipts per hour per network.
+3. Screenshots and a demo video (agent-browser `record start/stop`), for the post.
+4. Then Day 8: the DEV post from `handoff/BUILD_LOG.md`.
 
 ## Accounts and setup state
 
@@ -82,15 +81,8 @@ Day 7 in `handoff/PLAN.md`.
 
 ## Blockers / open questions
 
-- **Waiting on the user: the dictation re-test** (the only open item of Day 3).
-  - First try (Sep 28, Android phone): recognition worked but every word repeated ("we we we need…").
-  - Fixed in `web/src/app/ask/transcript.ts` and deployed as `dpl_9fpmDXhK5pvdfKqqm24pagyxmzNU`. Verified with `web/scripts/check-dictation.ts` (11/11) and a scripted fake recognizer on production (Pixel 7 and desktop).
-  - Steps for the user:
-    1. Open https://vouch-sanity.vercel.app/ask on the same phone and reload the page.
-    2. Tap "Dictate instead" and say "We need rice and milk for the week". On Android it stops by itself at the pause.
-    3. Report whether the sentence appears once. Nothing needs to be submitted.
-  - If it does, tick Day 3 in PLAN and note it in BUILD_LOG.
-- **Day 7 reset script:** see "Exact next action" 2.
+- Nothing waits on the user. Before the reset script deletes anything, show them the dry-run list.
+- **Dictation (resolved Sep 28):** Chrome on Android re-sent the utterance so far, which doubled every word. Fixed in `web/src/app/ask/transcript.ts` (checked by `web/scripts/check-dictation.ts`), and confirmed on the user's phone. Android records one utterance per tap.
 - **Rate-limit caveats (for the post):**
   - Fixed windows: a burst across a boundary can reach twice a limit.
   - Limits are per network, so people behind one NAT share them.

@@ -83,7 +83,7 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
 
 - [x] Day 1 (Sep 26-27): GitHub repo; scaffold `web/` + `studio/`; Sanity project + public dataset; schemas; seed (categories, ~40 supply items, policy, ~10 needs); Studio deployed; skeleton `web/` deployed to Vercel; first real Jev call from a server route; fill AGENTS.md Commands. *(Verified Sep 26: project `o8hcpsct`, Studio vouch-aid.sanity.studio, web vouch-sanity.vercel.app; anonymous GROQ shows 8 published / 0 drafts; prod Jev call recorded as a decision.)*
 - [x] Day 2 (Sep 28, done Sep 27): feed + request page + pledges (live updates). The pledge updates `pledgedQty` in the same transaction as the pledge doc (`ifRevisionId`); drafts return 404. *(Verified Sep 27 on production: two browsers, B updated ~1.4 s after A's pledge with no reload; `pledgedQty` and the pledge doc correct in Sanity; direct Server Action POSTs refused over-pledging, a draft-only request and a cross-site Origin; 6 simultaneous pledges for 5 units → exactly 5 accepted; drafts 404.)*
-- [ ] Day 3 (Sep 29, done Sep 27 except one check): submit flow (speech + text) → catalog match → triage → draft/publish gate → decisions stored. Also decide how a requester returns to their draft (needed for send-back), and check the trail's decision rendering on real data.
+- [x] Day 3 (Sep 29, done Sep 27; dictation confirmed Sep 28): submit flow (speech + text) → catalog match → triage → draft/publish gate → decisions stored. Also decide how a requester returns to their draft (needed for send-back), and check the trail's decision rendering on real data.
   - *Verified Sep 27 on production:*
     - A clear plea was published in 1.43 s and appeared on an open feed 1.62 s later with no reload; its trail shows both decisions.
     - A gift-card plea stayed a private draft (both URLs 404, anonymous count 0) with a code-written reason.
@@ -92,7 +92,7 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
     - Jev down (bad key) → review with the error.
     - Calibration: 33/33.
     - The way back to a draft is `/status#token` (only the SHA-256 is stored).
-  - **Still open: the user's live dictation test in Chrome.** Tick this box after it.
+  - **Dictation on a real phone (Sep 28):** the first try repeated every word (Chrome on Android re-sends the utterance so far). After the fix in `web/src/app/ask/transcript.ts`, the user's re-test on the same Android phone showed the sentence once.
 - [x] Day 4 (Sep 30, done Sep 27): Workflows engine lifecycle (timebox) + verifier desk. Approve reuses the intake's revision-guarded publish transaction. Send-back is answered on `/status#token` and resubmitting re-runs triage. The 5 demo drafts in `review` are the test material.
   - *Timebox verdict:* adopt the engine. The whole lifecycle is `web/src/workflows/need-lifecycle.ts` (deployed `prod.need-lifecycle.v1`). Functions moved to cdg1, next to the EU Content Lake shard.
   - *Verified Sep 27 on production:*

@@ -568,6 +568,6 @@ Wrap-ups now happen automatically after each verified milestone, or when I say s
   - **As a Pixel 7:** `continuous: false`. After each of the 12 events the box read "Hello. we" … "Hello. we need rice and milk for the week", with no repeat, read-only while listening and editable after.
   - **As desktop Chrome:** `continuous: true`, with separate phrases joined into the same sentence.
 - `npm run typecheck` and `npm run lint` pass.
-- **Still needed:** the user's real phone. Day 3 stays unticked until they confirm.
+- **The user's real phone, after the fix:** they reloaded /ask on the same Android phone, dictated again and reported "dictate was normal now". Day 3 is ticked.
 
 **Lesson for the post:** the only person who could test the microphone found the bug in 30 seconds. A demo path that "works on my machine" isn't verified.
