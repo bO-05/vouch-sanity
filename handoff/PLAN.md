@@ -122,11 +122,20 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
     - **Phones:** all 7 pages fit at 390 px and 320 px. Fixed the nav wrap, grid overflow, and the camera-only receipt input.
     - **Policy as content:** `catalogMinProbability` 0.5 → 0.95 in the published policy dropped Bread (p 0.87) from the very next match 16 s later, with no redeploy ("proposed 3 items" → "proposed 2 items"). Restored.
   - Not done (optional idea): a trail "state check" that recomputes each decision's state from the published text and compares it with `stateDigest`.
-- [ ] Day 7 (Oct 3): full production run of every DoD step; demo reset script (delete non-demo pledges, proofs and test docs, then `npm run seed`) and seed demo data; demo video + screenshots.
-  - The reset must also delete the `prod` workflow instances and re-run `web/scripts/workflow-migrate.ts`, since re-seeding resets `need-demo-09/10` to `intake`.
-  - Day 5 test data to reset: need-demo-01, 06 and 08 are fulfilled. Delete their proofs, the `receipt-scan.*` docs, `certificate-demo-*`, the receipt reviews and the `proof_match` decisions. The re-seed puts the requests back to `open`, and the migration re-adopts them at `open`.
-  - Also delete the `ratelimit.*` counters. Decide whether to keep `catalog_match` decisions whose request was never submitted: every checklist suggestion is stored, including 3 from the Day 6 policy check.
-  - Mind the limits during the full run: one network gets 5 submits per hour (12 per day) and 6 receipts per hour.
+- [ ] Day 7 (Oct 3, started Sep 28): full production run of every DoD step; demo reset script; demo video + screenshots.
+  - [x] **Demo reset** (`web/scripts/demo-reset.ts`, dry run unless `--yes`). Ran Sep 28 after the user approved the dry-run list:
+    - 92 documents deleted in one transaction (the 11 Day 3-4 test requests, all proofs, receipt scans, certificates, reviews and counters, all `prod` instances, and 35 test decisions). The 3 Day 1 health checks were kept.
+    - Backed up to a git-ignored folder. Then the seed and the migration ran, and all 11 checks passed.
+  - [x] **Full production run of DoD 1-7** (Sep 28, 12:28-13:05 UTC; details in BUILD_LOG):
+    - Ask → published automatically in about 9 s; payment → volunteer; emergency → resources.
+    - Desk: approve, send back → resubmit → published, reject.
+    - Live pledge: 2.4 s in a second browser.
+    - Receipts: automatic (certificate +10.6 s), declined then automatic, and volunteer-accepted. Certificate hash checked in the browser and in PowerShell.
+    - Trails, the public dataset and the Studio checked.
+    - This run's 9 documents are labeled demo (`web/scripts/label-demo.ts`).
+  - [x] Screenshots: 14 in `handoff/media/` (the private token hidden).
+  - [ ] Demo video (agent-browser `record`).
+  - Optional polish: label the times. Server-rendered ones (desk, trails) are UTC, while the status page uses local time.
 - [ ] Day 8 (Oct 4): DEV post from `handoff/BUILD_LOG.md` (Path Two template); publish by noon PDT.
 
 ## Risks → fallbacks

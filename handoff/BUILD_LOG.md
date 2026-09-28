@@ -571,3 +571,88 @@ Wrap-ups now happen automatically after each verified milestone, or when I say s
 - **The user's real phone, after the fix:** they reloaded /ask on the same Android phone, dictated again and reported "dictate was normal now". Day 3 is ticked.
 
 **Lesson for the post:** the only person who could test the microphone found the bug in 30 seconds. A demo path that "works on my machine" isn't verified.
+
+## Day 7 (part 1): Mon, Sep 28. A clean dataset, then every promise in the Definition of done, in order, on production
+
+**Goal:** Day 7 in PLAN (planned for Oct 3): the demo reset script, then a full production run of DoD 1-7. Prompt: "go. day 7 please. show me the reset dry-run list before deleting anything."
+
+**What shipped:**
+- **`web/scripts/demo-reset.ts`: dry run unless `--yes`.**
+  - It lists every document it would delete, grouped, with titles and stages:
+    - Requests that aren't seeded demo requests, published or draft, plus the wrong copy of a seeded one. `need-demo-09` had been approved on Day 4, so its published copy would have survived a re-seed as a stray.
+    - Test pledges.
+    - Every proof, receipt scan, certificate and review.
+    - The rate-limit counters.
+    - Every engine document on tag `prod` except the definition.
+    - Decisions, by `--decisions=test|all|keep`. The default keeps the 3 Day 1 health checks.
+  - With `--yes` it does four things:
+    1. Writes every affected document to a git-ignored `web/.reset-backups/*.ndjson`.
+    2. Deletes everything in **one transaction**, so the strong pledge/proof/certificate → request references never dangle midway.
+    3. Runs `npm run seed` and `workflow-migrate.ts`.
+    4. Checks the result: anonymous counts, private drafts, instance stages, and the pledge invariant.
+- **`web/scripts/label-demo.ts <ids>`:** sets `isDemo: true` on requests, pledges and proofs the team wrote while testing (the Day 3/4 practice, now a script with `ifRevisionId`).
+- **14 screenshots** in `handoff/media/` for the post. The private status token is hidden: in the page before the screenshot for 03/04, and with a `sharp` overlay for 02.
+
+**The reset** (after the user approved the dry-run list):
+- 92 documents deleted in transaction `hlhLRnJC2qq7qfNW6rUqZv`, with 106 backed up.
+- The seed wrote 69 mutations. The migration adopted 01-08 at `open` and started 09/10 at triage.
+- All 11 checks passed:
+  - Anonymous reads see 8 requests, 5 pledges, and 0 proofs, certificates, drafts, reviews, scans and counters.
+  - Privately: 2 drafts, and instances "8 at open, 2 at triage".
+  - The pledge invariant is `[]`.
+
+**Verified by: the full DoD run** on https://vouch-sanity.vercel.app (unchanged deploy `dpl_9fpmDXhK5pvdfKqqm24pagyxmzNU`), Sep 28, 12:28-13:05 UTC, in agent-browser sessions for a requester/donor, an observer and a verifier:
+1. **Ask → checklist → edit → submit.**
+   - "Soap and toothpaste for my kids" (Daniel, Leeds): Jev proposed toothpaste 2, bar soap 2, toothbrushes 1, with the quantities taken from the words. The requester added shampoo.
+   - "Medicine for my son": fever reducer p 0.98 and thermometer 0.96 were proposed, and pain reliever (0.79) was removed by hand.
+   - A plea for "groceries" and money got no items at all. Jev can't invent them.
+2. **Within seconds:**
+   - Daniel's request was **published automatically**: triage 5.1 s + publishing 4.1 s.
+   - "Help with groceries this week" (Cash App / PayPal) → volunteer: payment flag p 0.97 ≥ 0.50.
+   - "Medicine for my son" (a feverish child who is hard to wake) → **emergency resources shown** + volunteer: danger p 0.95 ≥ 0.30.
+   - "Blankets and gloves before winter" with "a Venmo transfer works too" → volunteer: p 0.92.
+   - Every reason on screen is composed by code from Jev's numbers and the policy.
+3. **Verifier desk** (as Bram):
+   - "Retry automatic steps" ran the real Jev triage on the two seeded drafts. `need-demo-09` (Spanish) → bilingual volunteer. `need-demo-10` ("Anything helps") → not_material 0.53 and category "unclear" 1.00.
+   - **Approve** 09 with a note → public 12.6 s after the click command (that figure includes the CLI's start-up).
+   - **Send back** the Venmo plea → the requester read the note on `/status`, deleted the Venmo sentence and resubmitted → Jev re-checked it from scratch (payment 0.01) → **published** 13.8 s after the click.
+   - **Reject** the Cash App plea → its status page says "Rejected (stays private)" with the note.
+   - Anonymous reads: 0 drafts, and neither flagged request is visible.
+   - Two requests are left in the inbox for judges: demo-10 and the emergency one.
+4. **Pledge** 2 × toothpaste as Nadia:
+   - Her own page updated 1.6 s after the click, and a second browser with no reload 2.4 s after. Both were timed in the pages with `Date.now()`.
+   - `pledgedQty` 2/2, and the invariant is `[]`.
+5. **Receipts:**
+   - Groceries sample on demo-08 → read in the browser, 15 editable lines → `auto_verified` (3/3 at p = 1.00, "is a receipt" 0.98) → checked 6.4 s and **certificate 10.6 s** after submit.
+     - The certificate page's in-browser SHA-256 matched. One typed character → "Mismatch". PowerShell's SHA-256 of the stored payload is equal.
+   - Electronics sample on demo-06 → "0 of 3 checklist items" → desk **decline** with a note → back to `open`. Then the pharmacy sample → `auto_verified` → certificate 9.6 s after submit → fulfilled.
+   - Groceries on demo-01 with one line rewritten to "DRY BEANS FOR MARIA x2":
+     - The page warned about it live.
+     - Jev still matched all 4 items, but the line's similarity to the photo was 0.25 < 0.60 → desk.
+     - **Accepted** with a note → certificate `verifiedBy: {kind: volunteer, reviewer: Bram}`.
+6. **Trails:**
+   - The re-submitted request shows the catalog match, both triage decisions with every flag's probability, "Volunteer Bram: Sent back" (the note stays private), and the lifecycle including the loop.
+   - demo-01 shows the proof match, the accepted receipt with the volunteer's note, and the certificate hash.
+   - demo-09 shows the approval note publicly.
+7. **For judges:**
+   - The anonymous GROQ endpoint answers.
+   - https://vouch-aid.sanity.studio returns 200.
+   - `/api/status` reports 11 published requests and all 3 server secrets set (booleans only).
+
+Rate-limit use, for the next session: 4 submits and 4 receipts today, all from one network. The resubmit isn't limited.
+
+**What didn't:**
+1. **The contact check ran first.** My first send-back plea had "Text me at 312-555-0142". The form's code check refused it before any Jev call ("Please remove contact details…"). That's correct and a nice screenshot (05), but not a send-back test, so the plea used a Venmo line instead.
+2. **Tooling slips:**
+   - `agent-browser screenshot <relative path>` saved to its own temp folder. Absolute paths work.
+   - `find label … select` doesn't exist.
+   - My first in-page "certificate issued" timer fired at 101 ms, because the page's intro text already mentions certificates. The real timings come from the proof's and certificate's timestamps in Sanity.
+3. **"Urgency 2.26, confidence 0.26" looked like our bug. It isn't.** The stored answers show Jev's own Score `confidence` (2.18 → 0.18, 1.97 → 0, 0.49 → 0.51), and bimodal probabilities (level 1: 0.25, level 3: 0.64). The trail shows it verbatim. This is the Day 3 reason urgency never gates.
+
+**Decisions:**
+- **The 11 Day 3-4 test requests were deleted,** with their decisions, reviews and instances (the user chose this from the dry run). This run made fresh equivalents: auto-published, approved, sent back and resubmitted, rejected, emergency, and three kinds of certificate.
+- **The 3 Day 1 health-check decisions were kept.** They have no subject and are the first real Jev calls.
+- **This run's 9 documents were labeled demo:** 4 requests, 1 pledge, 4 proofs. The feed footer promises "Cards marked Demo are samples written by the Vouch team".
+- **Polish noticed, not done:** server-rendered times (desk, trails) are UTC, but the status page uses the browser's local time, and neither is labeled.
+
+**Next:** the demo video (agent-browser `record`), then the DEV post (Day 8).

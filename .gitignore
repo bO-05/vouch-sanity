@@ -19,6 +19,13 @@ coverage/
 .env.*
 !.env.example
 
+# demo-reset backups (full documents, incl. private receipt scans)
+.reset-backups/
+
+# demo videos (large; uploaded separately for the post)
+*.webm
+*.mp4
+
 # OS
 .DS_Store
 Thumbs.db
