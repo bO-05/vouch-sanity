@@ -42,6 +42,8 @@ A brand-new session should be able to continue from this file alone. It's rewrit
 
 ## Exact next action
 
+0. **Submission kit (local only, never commit it):** `submission/` holds the video guide, the narration script and the DEV post draft. It's excluded via `.git/info/exclude` (not `.gitignore`), at the user's request: the remote repo stays about the app. Read `submission/README.md` first; the steps below are covered there too.
+
 1. **Demo video** (Day 7's last item). Use `agent-browser record start <abs path>.webm` / `record stop`, and explore before recording.
    - Suggested 2-3 minute story:
      1. Feed.
