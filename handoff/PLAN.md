@@ -139,6 +139,7 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
     - This run's 9 documents are labeled demo (`web/scripts/label-demo.ts`).
   - [x] Screenshots: 14 in `handoff/media/` (the private token hidden), plus 4 of the quantity check (14-17).
   - [x] Oct 1 visual refresh: seven production screenshots refreshed in `handoff/media/` (feed, ask form, review reasons, desk sign-in, pledge, fulfilled units, certificate); visually inspected, with no passcode visible.
+  - [x] Oct 1 hero follow-up: the home feed now pairs its introduction with the user-provided request-to-receipt illustration, stacking it below the call to action on small screens. Typecheck and local server response passed.
   - [x] **Found by the user:** "fulfilled" while the checklist said "2 still needed". *(Fixed and verified Sep 28 on production, `dpl_9DBzKHKMgv774T6SHAP8dSYQ7xrT`; details in BUILD_LOG "Day 7 (part 2)".)*
     - Now code counts the units a receipt shows. Jev never counts.
     - Coverage means units, and the policy's `proofMinCoverage` is 1: automatic "fulfilled" means everything, in full.

@@ -182,8 +182,28 @@ main {
   padding-block: clamp(2.25rem, 5vw, 3.75rem) 2rem;
 }
 
+.feed-heading-with-art {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(17rem, 0.92fr);
+  align-items: center;
+  gap: clamp(1.75rem, 4vw, 3rem);
+}
+
 .feed-heading-copy {
   max-width: 47rem;
+}
+
+.feed-hero-art {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 1rem;
+}
+
+.feed-hero-image {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .feed-kicker {
@@ -503,6 +523,16 @@ main {
     align-items: flex-start;
     flex-direction: column;
     gap: 1.4rem;
+  }
+
+  .feed-heading-with-art {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+    padding-block: 2rem 1.5rem;
+  }
+
+  .feed-hero-art {
+    width: 100%;
   }
 
   .feed-ask-link {

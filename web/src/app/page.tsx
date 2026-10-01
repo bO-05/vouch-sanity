@@ -1,4 +1,6 @@
+import Image from 'next/image'
 import Link from 'next/link'
+import heroArtwork from '../Image.png'
 import {dataset, projectId} from '@/lib/sanity/config'
 import {fetchPublished} from '@/lib/sanity/live'
 import {pledgedOn, receiptUnits, totals} from '@/lib/format'
@@ -109,7 +111,7 @@ export default async function Home() {
 
   return (
     <main className="feed-main mx-auto flex w-full max-w-6xl flex-1 flex-col px-5 py-6 sm:px-8">
-      <header className="feed-heading">
+      <header className="feed-heading feed-heading-with-art">
         <div className="feed-heading-copy">
           <p className="feed-kicker">Vouch / community board</p>
           <div className="feed-title-row">
@@ -121,10 +123,19 @@ export default async function Home() {
           <p className="feed-description">
             Only published requests appear here. Jev makes typed decisions; a volunteer reviews anything uncertain.
           </p>
+          <Link href="/ask" className="feed-ask-link">
+            Ask for help <span className="feed-ask-arrow" aria-hidden="true">↗</span>
+          </Link>
         </div>
-        <Link href="/ask" className="feed-ask-link">
-          Ask for help <span className="feed-ask-arrow" aria-hidden="true">↗</span>
-        </Link>
+        <figure className="feed-hero-art">
+          <Image
+            src={heroArtwork}
+            alt="A neighbor's request becomes a checked supply list, groceries, and a verified receipt."
+            className="feed-hero-image"
+            sizes="(max-width: 640px) 100vw, (max-width: 1152px) 46vw, 520px"
+            preload
+          />
+        </figure>
       </header>
 
       {loadError ? (

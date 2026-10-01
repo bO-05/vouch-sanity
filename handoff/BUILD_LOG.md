@@ -757,3 +757,12 @@ Rate-limit use, for the next session: 4 submits and 4 receipts today, all from o
 **What didn't:** `git fetch origin` could not create `.git/FETCH_HEAD` because of filesystem permissions; `git ls-remote origin refs/heads/main` confirmed the remote commit matches local `HEAD`.
 **Decisions:** commit the refreshed handoff screenshots and their project notes. Keep the local-only submission draft and temporary `.playwright-cli/` and `output/` captures out of Git.
 **Next:** record the demo video, then write the DEV post.
+
+## Day 7 (part 5): Thu, Oct 1. The request-to-receipt hero
+
+**Goal:** use the user's illustration to make the home feed's trust flow immediately clear.
+**What shipped:** a responsive hero pairing the existing feed heading and ask action with the illustration in `web/src/Image.png`. The desktop layout uses two columns; the image stacks below the action on small screens. `next/image` handles responsive sizing and preload.
+**Verified by:** `npm run typecheck` passed for web and Studio. `GET http://localhost:3000/` returned 200, and the server-rendered home page included the accessible image markup and existing feed heading.
+**What didn't:** the local browser bridge again rejected the preview connection, so I couldn't capture a new browser screenshot. The local page was opened in Codex for review.
+**Decisions:** keep the illustration as one quiet editorial anchor; leave the request feed directly below it and add no decorative motion.
+**Next:** record the demo video, then write the DEV post.
