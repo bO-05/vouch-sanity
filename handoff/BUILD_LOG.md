@@ -763,6 +763,15 @@ Rate-limit use, for the next session: 4 submits and 4 receipts today, all from o
 **Goal:** use the user's illustration to make the home feed's trust flow immediately clear.
 **What shipped:** a responsive hero pairing the existing feed heading and ask action with the illustration in `web/src/Image.png`. The desktop layout uses two columns; the image stacks below the action on small screens. `next/image` handles responsive sizing and preload.
 **Verified by:** `npm run typecheck` passed for web and Studio. `GET http://localhost:3000/` returned 200, and the server-rendered home page included the accessible image markup and existing feed heading.
-**What didn't:** the local browser bridge again rejected the preview connection, so I couldn't capture a new browser screenshot. The local page was opened in Codex for review.
+**What didn't:** the local browser bridge again rejected the preview connection, so I couldn't capture a new browser screenshot. A preview request was queued in Codex for review.
 **Decisions:** keep the illustration as one quiet editorial anchor; leave the request feed directly below it and add no decorative motion.
+**Next:** record the demo video, then write the DEV post.
+
+## Day 7 (part 6): Thu, Oct 1. Deploying the hero safely
+
+**Goal:** keep the production app aligned with the pushed hero change.
+**What shipped:** Vercel deployment `dpl_AiBo2H6xenrfJanD5aK2GqUxZfzB` completed with state READY and the production alias `https://vouch-sanity.vercel.app`. The root `.vercelignore` now excludes the private submission kit, handoff evidence, temporary captures and reset backups.
+**Verified by:** Vercel's production deploy reported READY; the remote build completed with Next.js 16.3.6 and assigned the production alias.
+**What didn't:** the first upload showed 699.6 MB from the local-only submission folder; it was canceled at 0 bytes. After adding deploy exclusions, the upload reported 390 bytes and Vercel retrieved the deployment files and built successfully. The first `npx` attempt hit an npm cache `EPERM`; a temp cache allowed the CLI to run. Vercel also logged a non-fatal cache-update `EPERM` while completing the deployment.
+**Decisions:** do not send the local submission kit or private reset backup to Vercel. Keep the manual production deployment command because the project is not Git-connected.
 **Next:** record the demo video, then write the DEV post.

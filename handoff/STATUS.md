@@ -2,18 +2,20 @@
 
 A brand-new session should be able to continue from this file alone. It's rewritten at every wrap-up.
 
-**Last updated:** Thu Oct 1, 2026, Day 7 (part 5).
+**Last updated:** Thu Oct 1, 2026, Day 7 (part 6).
 - Part 1: demo reset done (the user approved the dry run), the full production run of DoD 1-7 passed, and 14 screenshots are saved.
 - Part 2: the user found "fulfilled while 2 still needed". Code now counts receipt quantities; coverage is units and the policy needs 1.0. Verified on production.
 - Part 3: the requested UI refresh is implemented. Full checks passed; the local feed returned 200 with 20 published requests and no Sanity error. Preview: http://localhost:3000. The automated browser bridge was unavailable; details are in BUILD_LOG.
 - Part 4: seven production screenshots were refreshed after the UI redesign and visually checked. The DEV post draft remains local-only; no app code is waiting to push.
-- Part 5: added the request-to-receipt illustration as a responsive home-feed hero. Typecheck passed; the local feed returned HTTP 200 with the optimized image markup. Production has not been redeployed.
+- Part 5: added the request-to-receipt illustration as a responsive home-feed hero. Typecheck passed; the local feed returned HTTP 200 with the optimized image markup.
+- Part 6: deployed the hero to production; Vercel reports READY and assigned the `https://vouch-sanity.vercel.app` alias. `.vercelignore` now excludes local-only submission files and reset backups.
 - Left for Day 7: the demo video. Then Day 8: the post.
 
 ## Where we are
 
 - UI refresh (Oct 1): warm, editorial community feed, responsive navigation and restrained CSS motion. npm run check passed; the local response showed 20 published requests and no Sanity load error. A preview was queued in Codex, but the browser automation bridge did not connect.
 - Hero follow-up: the supplied illustration now explains the request → checklist → groceries → receipt flow beside the feed introduction on desktop and below it on phones. The original PNG is imported through `next/image` with responsive sizing and preload.
+- Production deploy: `dpl_AiBo2H6xenrfJanD5aK2GqUxZfzB` (Oct 1, 2026). Vercel build completed; deployment is READY.
 - Submission images: the refreshed Oct 1 production captures are in `handoff/media/` (`00`, `01`, `03`, `06`, `08`, `15`, `17`); temporary browser captures are not submission assets.
 
 - Days 1-6 are verified and ticked. On Day 7, the reset, the full DoD run, the screenshots and the quantity fix are ticked in PLAN; the video isn't. Evidence is in `handoff/BUILD_LOG.md` ("Day 7 (part 1)" and "(part 2)").
@@ -78,7 +80,7 @@ A brand-new session should be able to continue from this file alone. It's rewrit
 | Thing | State |
 |---|---|
 | GitHub | `gh` as `bO-05`. Private repo https://github.com/bO-05/vouch-sanity (public only at submission, with the user's OK) |
-| Vercel | `bo-05`, team `bo05s-projects`, project `vouch-sanity` (`prj_1URHcrG1AU3k4lPHiBSY57hzF2Il`), Root Directory `web`, Node 22.x, function region `cdg1`. Not git-connected: `npx -y vercel@latest deploy --prod --yes` from the repo root. Last prod deploy: `dpl_9DBzKHKMgv774T6SHAP8dSYQ7xrT` (receipt quantities). Studio redeployed the same day with the new proof fields |
+| Vercel | `bo-05`, team `bo05s-projects`, project `vouch-sanity` (`prj_1URHcrG1AU3k4lPHiBSY57hzF2Il`), Root Directory `web`, Node 22.x, function region `cdg1`. Not git-connected: `npx -y vercel@latest deploy --prod --yes` from the repo root. Last prod deploy: `dpl_AiBo2H6xenrfJanD5aK2GqUxZfzB` (responsive home-feed hero). Studio redeployed the same day with the new proof fields |
 | Sanity | CLI logged in (Google). Org `oosvo2181`. Project `o8hcpsct` (Content Lake shard `gcp-eu-w1`, Belgium). Token "Vouch web server (Next.js)" (editor). CORS: `http://localhost:3333`, `http://localhost:3000`, `https://vouch-sanity.vercel.app`. Workflows: definition `prod.need-lifecycle.v1`, tag `prod` |
 | TypeSafe | Key in `web/.env.local` and Vercel env. `jev-latest` → `jev-1.13.0`: about 250-300 ms per call |
 | Tooling | Node 22.22.0, npm 10.5.1, Windows PowerShell 5.1. Next 16.3.6, React 19.3.0, Studio 6.16.0, next-sanity 13.3.4, @sanity/client 8.7.0, @sanity/workflow-engine 0.35.0, @typesafe-ai/sdk 0.6.0, tesseract.js 7.0.0. `npx -y agent-browser` 0.38.1: use **absolute** paths for `screenshot`/`record` |

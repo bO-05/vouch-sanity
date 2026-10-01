@@ -9,3 +9,12 @@ studio/.sanity
 .opencode
 *.log
 *.tsbuildinfo
+
+# Private submission kit and local capture artifacts are not part of the app deploy.
+/submission
+/handoff
+/output
+/.playwright-cli
+
+# The reset script's backup includes private receipt scans.
+/web/.reset-backups
