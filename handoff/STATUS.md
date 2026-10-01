@@ -2,12 +2,15 @@
 
 A brand-new session should be able to continue from this file alone. It's rewritten at every wrap-up.
 
-**Last updated:** Mon Sep 28, 2026, Day 7 (part 2).
+**Last updated:** Thu Oct 1, 2026, Day 7 (part 3).
 - Part 1: demo reset done (the user approved the dry run), the full production run of DoD 1-7 passed, and 14 screenshots are saved.
 - Part 2: the user found "fulfilled while 2 still needed". Code now counts receipt quantities; coverage is units and the policy needs 1.0. Verified on production.
+- Part 3: the requested UI refresh is implemented. Full checks passed; the local feed returned 200 with 20 published requests and no Sanity error. Preview: http://localhost:3000. The automated browser bridge was unavailable; details are in BUILD_LOG.
 - Left for Day 7: the demo video. Then Day 8: the post.
 
 ## Where we are
+
+- UI refresh (Oct 1): warm, editorial community feed, responsive navigation and restrained CSS motion. npm run check passed; the local response showed 20 published requests and no Sanity load error. A preview was queued in Codex, but the browser automation bridge did not connect.
 
 - Days 1-6 are verified and ticked. On Day 7, the reset, the full DoD run, the screenshots and the quantity fix are ticked in PLAN; the video isn't. Evidence is in `handoff/BUILD_LOG.md` ("Day 7 (part 1)" and "(part 2)").
 - **Receipts count quantities (Sep 28, part 2):**
@@ -21,7 +24,8 @@ A brand-new session should be able to continue from this file alone. It's rewrit
 - **New scripts (from `web/`):**
   - `scripts/demo-reset.ts`: dry run unless `--yes`. It backs up to the git-ignored `web/.reset-backups/`, deletes everything in one transaction, then seeds, migrates and runs 11 checks.
   - `scripts/label-demo.ts <ids>`: labels test documents as demo.
-- **The dataset now** (after the reset and the DoD run, Sep 28 12:21-13:05 UTC):
+- **Current public feed count (Oct 1):** 20 published request rows rendered from Sanity. The item-by-item inventory below is the Sep 28 reset snapshot and was not reconciled during this UI-only pass.
+- **The dataset snapshot** (after the reset and the DoD run, Sep 28 12:21-13:05 UTC):
   - **11 published requests:** 8 seeded, `need-demo-09` (approved), plus:
     - "Soap and toothpaste for my kids", `need-9e0e529b-…`: published automatically, 2/2 toothpaste pledged by Nadia.
     - "Blankets and gloves before winter", `need-055dbef8-…`: sent back, resubmitted, published.

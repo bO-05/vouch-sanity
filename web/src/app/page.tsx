@@ -18,82 +18,81 @@ function NeedCard({need}: {need: FeedNeed}) {
   const units = receipt?.quantities ? receiptUnits(receipt.quantities) : null
   // No bar for a receipt checked before quantities were counted: there is no share to show.
   const barPercent = receipt ? (units ? Math.round((units.shown / Math.max(1, units.needed)) * 100) : null) : percent
+  const summary = receipt
+    ? 'Fulfilled · ' +
+      (units
+        ? 'the receipt shows ' + units.shown + ' of ' + units.needed + ' units'
+        : 'receipt verified before quantities were counted')
+    : pledged + ' of ' + requested + ' units pledged · ' + (STAGE_LABELS[need.stage] ?? need.stage)
 
   return (
-    <article className="relative flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5 transition-colors focus-within:border-amber/60 hover:border-amber/60">
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        {urgency ? (
-          <span
-            className={`rounded-full px-2.5 py-1 font-medium ${
-              (need.urgency ?? 0) >= 2 ? 'bg-amber-soft text-amber' : 'bg-surface-2 text-muted'
-            }`}
-          >
-            {urgency}
-          </span>
-        ) : null}
-        {need.category ? (
-          <span className="rounded-full bg-surface-2 px-2.5 py-1 text-muted">{need.category}</span>
-        ) : null}
-        {need.isDemo ? (
-          <span
-            className="rounded-full border border-border px-2.5 py-1 text-muted"
-            title="Sample request written by the Vouch team, not a real person"
-          >
-            Demo
-          </span>
-        ) : null}
+    <article className="need-card">
+      <div className="need-card-body">
+        <div className="need-card-tags">
+          {urgency ? (
+            <span className={(need.urgency ?? 0) >= 2 ? 'need-tag need-tag-priority' : 'need-tag'}>
+              {urgency}
+            </span>
+          ) : null}
+          {need.category ? <span className="need-tag">{need.category}</span> : null}
+          {need.isDemo ? (
+            <span
+              className="need-tag need-tag-demo"
+              title="Sample request written by the Vouch team, not a real person"
+            >
+              Demo
+            </span>
+          ) : null}
+        </div>
+
+        <div className="need-card-heading">
+          <h2>
+            <Link href={'/requests/' + need._id} className="need-card-link">
+              {need.title}
+              <span className="need-card-link-mark" aria-hidden="true">↗</span>
+            </Link>
+          </h2>
+          <p className="need-card-location">
+            {need.displayName} <span aria-hidden="true">·</span> {need.city}, {need.country}
+          </p>
+        </div>
+
+        <ul className="need-card-items">
+          {(need.items ?? []).map((item) => (
+            <li key={item._key} className="need-card-item">
+              <span className="need-card-item-name">
+                {item.quantity} × {item.name ?? 'Unknown item'}
+                {item.unit ? <span className="text-muted"> ({item.unit})</span> : null}
+              </span>
+              <span className="need-card-item-status">
+                {receipt
+                  ? shownByItem
+                    ? Math.min(shownByItem.get(item._key) ?? 0, item.quantity) + '/' + item.quantity + ' bought'
+                    : onReceipt.has(item._key)
+                      ? 'on receipt'
+                      : 'not on receipt'
+                  : pledgedOn(item) + '/' + item.quantity}
+              </span>
+            </li>
+          ))}
+        </ul>
       </div>
 
-      <div>
-        <h2 className="text-lg font-semibold leading-snug">
-          {/* The whole card is the link target; the title carries the accessible name. */}
-          <Link href={`/requests/${need._id}`} className="after:absolute after:inset-0 focus:outline-none">
-            {need.title}
-          </Link>
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          {need.displayName} · {need.city}, {need.country}
-        </p>
-      </div>
-
-      <ul className="flex flex-col gap-1.5 text-sm">
-        {(need.items ?? []).map((item) => (
-          <li key={item._key} className="flex justify-between gap-3">
-            <span>
-              {item.quantity} × {item.name ?? 'Unknown item'}
-              {item.unit ? <span className="text-muted"> ({item.unit})</span> : null}
-            </span>
-            <span className="shrink-0 font-mono text-xs text-muted">
-              {receipt
-                ? shownByItem
-                  ? `${Math.min(shownByItem.get(item._key) ?? 0, item.quantity)}/${item.quantity} bought`
-                  : onReceipt.has(item._key)
-                    ? 'on receipt'
-                    : 'not on receipt'
-                : `${pledgedOn(item)}/${item.quantity}`}
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <div className="mt-auto flex flex-col gap-2">
+      <div className="need-card-aside">
         {barPercent !== null ? (
           <div
-            className="h-1.5 overflow-hidden rounded-full bg-surface-2"
+            className="need-card-progress"
             role="progressbar"
             aria-valuenow={barPercent}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-label={receipt ? 'Share of requested units shown on the verified receipt' : 'Share of requested units pledged'}
           >
-            <div className="h-full rounded-full bg-amber transition-[width] duration-500" style={{width: `${barPercent}%`}} />
+            <div className="need-card-progress-fill" style={{width: String(barPercent) + '%'}} />
           </div>
         ) : null}
-        <p className="text-xs text-muted">
-          {receipt
-            ? `Fulfilled · ${units ? `the receipt shows ${units.shown} of ${units.needed} units` : 'receipt verified before quantities were counted'}`
-            : `${pledged} of ${requested} units pledged · ${STAGE_LABELS[need.stage] ?? need.stage}`}
-        </p>
+        <p className="need-card-summary">{summary}</p>
+        <p className="need-card-action">Open request <span aria-hidden="true">→</span></p>
       </div>
     </article>
   )
@@ -109,17 +108,23 @@ export default async function Home() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-5 py-10 sm:px-8">
-      <header className="flex flex-col gap-3">
-        <p className="font-mono text-xs uppercase tracking-[0.2em] text-amber">Verified mutual aid</p>
-        <h1 className="max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">
-          Neighbors ask for help. The AI can&apos;t write a single sentence.
-        </h1>
-        <p className="max-w-2xl text-muted">
-          People ask in their own words. Jev only makes typed decisions with calibrated probabilities, and
-          anything uncertain goes to a volunteer. A request shows up here only once it&apos;s verified: in
-          Sanity, unverified requests stay private drafts. Pick one and pledge an item from its checklist.
-        </p>
+    <main className="feed-main mx-auto flex w-full max-w-6xl flex-1 flex-col px-5 py-6 sm:px-8">
+      <header className="feed-heading">
+        <div className="feed-heading-copy">
+          <p className="feed-kicker">Vouch / community board</p>
+          <div className="feed-title-row">
+            <h1>Verified requests from your neighbors</h1>
+            {!loadError ? (
+              <p className="feed-count">{needs.length} {needs.length === 1 ? 'request' : 'requests'}</p>
+            ) : null}
+          </div>
+          <p className="feed-description">
+            Only published requests appear here. Jev makes typed decisions; a volunteer reviews anything uncertain.
+          </p>
+        </div>
+        <Link href="/ask" className="feed-ask-link">
+          Ask for help <span className="feed-ask-arrow" aria-hidden="true">↗</span>
+        </Link>
       </header>
 
       {loadError ? (
@@ -135,21 +140,18 @@ export default async function Home() {
           </Link>
         </p>
       ) : (
-        <section aria-label="Verified requests" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section aria-label="Verified requests" className="need-list">
           {needs.map((need) => (
             <NeedCard key={need._id} need={need} />
           ))}
         </section>
       )}
 
-      <footer className="mt-auto border-t border-border pt-6 text-xs text-muted">
+      <footer className="feed-footer mt-auto border-t pt-6">
         Content lives in Sanity: project <span className="font-mono">{projectId}</span>, public dataset{' '}
-        <span className="font-mono">{dataset}</span> (published = verified; drafts stay private). Cards marked
+        <span className="font-mono">{dataset}</span> (published = verified; drafts stay private). Requests marked
         Demo are samples written by the Vouch team. Volunteers:{' '}
-        <Link href="/desk" className="text-amber hover:underline">
-          verifier desk
-        </Link>
-        .
+        <Link href="/desk">verifier desk</Link>.
       </footer>
     </main>
   )

@@ -32,13 +32,13 @@ const DAY = 24 * HOUR
 
 export const RATE_LIMITS = {
   /** One Jev call each. */
-  catalogMatch: {what: 'checklist suggestions', windows: [{seconds: HOUR, max: 20}]},
+  catalogMatch: {what: 'checklist suggestions', windows: [{seconds: HOUR, max: 40}]},
   /** Each one is a private draft for a volunteer, a Jev triage call and a lifecycle instance. */
-  submit: {what: 'new requests', windows: [{seconds: HOUR, max: 5}, {seconds: DAY, max: 12}]},
+  submit: {what: 'new requests', windows: [{seconds: HOUR, max: 10}, {seconds: DAY, max: 25}]},
   /** Fake pledges could fill a checklist and turn real donors away. */
-  pledge: {what: 'pledges', windows: [{seconds: HOUR, max: 30}]},
+  pledge: {what: 'pledges', windows: [{seconds: HOUR, max: 60}]},
   /** A Jev call and up to about 1.2 MB in Sanity each. */
-  receipt: {what: 'receipt uploads', windows: [{seconds: HOUR, max: 6}, {seconds: DAY, max: 15}]},
+  receipt: {what: 'receipt uploads', windows: [{seconds: HOUR, max: 10}, {seconds: DAY, max: 25}]},
   /** The desk sign-in and the Jev health check share it: every passcode guess counts. */
   passcode: {what: 'passcode attempts', windows: [{seconds: 15 * MINUTE, max: 10}]},
 } as const satisfies Record<string, Limit>

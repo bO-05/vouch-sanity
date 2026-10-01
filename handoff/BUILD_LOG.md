@@ -734,3 +734,17 @@ Rate-limit use, for the next session: 4 submits and 4 receipts today, all from o
 - **Old certificates aren't reissued.** They're hashed and immutable, and the pages label them as checked before quantities.
 
 **Next:** the demo video, then the DEV post. The story for the post: a user found the gap in five minutes, and the fix keeps the rule. Jev chooses, code counts, and a person decides the rest.
+
+## Day 7 (part 3): Thu, Oct 1. A neighborhood board, not a dashboard
+
+**Goal:** the user said the app UI still felt AI-generated and asked for better interface polish and animation.
+**What shipped:** warm paper, ink and amber tokens across the app; a compact sticky navigation; and a single-column, editorial request feed with clearer checklist, pledge and receipt status. Added a short page entrance, staggered feed rows, small hover affordances and eased progress updates. All motion respects reduced-motion preferences. No new dependencies or sound effects.
+**Verified by:**
+- npm run check: web and Studio typecheck, lint and production builds all passed.
+- GET http://localhost:3000: HTTP 200, the new feed heading and Sanity disclosure were present, 20 published request rows rendered, and the Sanity error state was absent.
+- git diff --check passed.
+**Prompts/approaches that worked:** "Make the app feel like a neighborhood board" led to a list-first layout, short operational copy and motion attached to navigation and status changes.
+**What didn't:** the in-app browser bridge returned "privileged native pipe bridge is not available; browser-client is not trusted", so no automated screenshot was captured.
+**Where we got stuck and how we course-corrected:** verified the server-rendered page against live published Sanity data, then queued the local preview in Codex for direct review.
+**Decisions:** kept the amber identity on warm neutral surfaces; used CSS instead of adding an animation package; honored reduced-motion settings; skipped sound.
+**Next:** record the demo video, then write the DEV post.

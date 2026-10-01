@@ -118,7 +118,7 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
   - *Verified Sep 28 on production (`dpl_4mULSinxjePqcWo9iHd4vgC4JeYn`):*
     - **Rate limits,** counted in private Sanity documents (`web/src/lib/rate-limit.ts`) and exceeded on purpose with invalid inputs:
       - Passcode (desk sign-in + Jev health): 10 per 15 min, then 429 with `Retry-After`; the desk form shows the message.
-      - Receipts: 6 per hour. Submits: 5 per hour. Catalog matches: 20 per hour. Pledges: 30 per hour.
+      - Receipts: 6 per hour. Submits: 5 per hour. Catalog matches: 20 per hour. Pledges: 30 per hour. *(Eased Sep 29 for judges: receipts 10/h and 25/day, submits 10/h and 25/day, matches 40/h, pledges 60/h; passcode unchanged.)*
       - No IP is stored (HMAC of the network). Anonymous reads see 0 counters. Expired counters are deleted automatically.
       - If Sanity can't count, the action is refused (checked with a "Sanity down" build).
     - **Error states:** every page says what failed when Sanity is unreachable. There are now a site-wide 404 and error boundary. The trail reports failed reads. The resubmit form no longer claims items "left the catalog" when the catalog failed to load.
@@ -126,6 +126,7 @@ As built on Day 4 (`web/src/workflows/need-lifecycle.ts`):
     - **Policy as content:** `catalogMinProbability` 0.5 → 0.95 in the published policy dropped Bread (p 0.87) from the very next match 16 s later, with no redeploy ("proposed 3 items" → "proposed 2 items"). Restored.
   - Not done (optional idea): a trail "state check" that recomputes each decision's state from the published text and compares it with `stateDigest`.
 - [ ] Day 7 (Oct 3, started Sep 28): full production run of every DoD step; demo reset script; demo video + screenshots.
+  - [x] UI visual pass (Oct 1, requested): warm paper-and-ink surfaces, clearer sticky navigation, a single-column request ledger, and CSS entrance, stagger, hover and progress motion with reduced-motion support. npm run check passed; a local GET returned 200 with 20 published request rows and no Sanity load error. Automated visual inspection was unavailable, so the local preview was queued in Codex for user review.
   - [x] **Demo reset** (`web/scripts/demo-reset.ts`, dry run unless `--yes`). Ran Sep 28 after the user approved the dry-run list:
     - 92 documents deleted in one transaction (the 11 Day 3-4 test requests, all proofs, receipt scans, certificates, reviews and counters, all `prod` instances, and 35 test decisions). The 3 Day 1 health checks were kept.
     - Backed up to a git-ignored folder. Then the seed and the migration ran, and all 11 checks passed.
