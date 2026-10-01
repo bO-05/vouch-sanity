@@ -748,3 +748,12 @@ Rate-limit use, for the next session: 4 submits and 4 receipts today, all from o
 **Where we got stuck and how we course-corrected:** verified the server-rendered page against live published Sanity data, then queued the local preview in Codex for direct review.
 **Decisions:** kept the amber identity on warm neutral surfaces; used CSS instead of adding an animation package; honored reduced-motion settings; skipped sound.
 **Next:** record the demo video, then write the DEV post.
+
+## Day 7 (part 4): Thu, Oct 1. Refreshing the submission screenshots
+
+**Goal:** keep the post's app screenshots aligned with the new production UI.
+**What shipped:** seven refreshed captures in `handoff/media/`: the feed, ask form, review reasons, desk sign-in, live pledge, fulfilled-by-units request, and certificate.
+**Verified by:** visually inspected all seven images; the new layout and current production data are visible, and no verifier passcode is shown. Confirmed `main` already matched `origin/main` before adding these assets.
+**What didn't:** `git fetch origin` could not create `.git/FETCH_HEAD` because of filesystem permissions; `git ls-remote origin refs/heads/main` confirmed the remote commit matches local `HEAD`.
+**Decisions:** commit the refreshed handoff screenshots and their project notes. Keep the local-only submission draft and temporary `.playwright-cli/` and `output/` captures out of Git.
+**Next:** record the demo video, then write the DEV post.

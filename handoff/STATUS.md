@@ -2,15 +2,17 @@
 
 A brand-new session should be able to continue from this file alone. It's rewritten at every wrap-up.
 
-**Last updated:** Thu Oct 1, 2026, Day 7 (part 3).
+**Last updated:** Thu Oct 1, 2026, Day 7 (part 4).
 - Part 1: demo reset done (the user approved the dry run), the full production run of DoD 1-7 passed, and 14 screenshots are saved.
 - Part 2: the user found "fulfilled while 2 still needed". Code now counts receipt quantities; coverage is units and the policy needs 1.0. Verified on production.
 - Part 3: the requested UI refresh is implemented. Full checks passed; the local feed returned 200 with 20 published requests and no Sanity error. Preview: http://localhost:3000. The automated browser bridge was unavailable; details are in BUILD_LOG.
+- Part 4: seven production screenshots were refreshed after the UI redesign and visually checked. The DEV post draft remains local-only; no app code is waiting to push.
 - Left for Day 7: the demo video. Then Day 8: the post.
 
 ## Where we are
 
 - UI refresh (Oct 1): warm, editorial community feed, responsive navigation and restrained CSS motion. npm run check passed; the local response showed 20 published requests and no Sanity load error. A preview was queued in Codex, but the browser automation bridge did not connect.
+- Submission images: the refreshed Oct 1 production captures are in `handoff/media/` (`00`, `01`, `03`, `06`, `08`, `15`, `17`); temporary browser captures are not submission assets.
 
 - Days 1-6 are verified and ticked. On Day 7, the reset, the full DoD run, the screenshots and the quantity fix are ticked in PLAN; the video isn't. Evidence is in `handoff/BUILD_LOG.md` ("Day 7 (part 1)" and "(part 2)").
 - **Receipts count quantities (Sep 28, part 2):**
